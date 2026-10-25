@@ -305,6 +305,29 @@ ol.steps-list { margin: 0; padding-left: 1.4em; display: grid; gap: 12px; max-wi
 ol.steps-list li p { max-width: none; }
 .mini-ex { font-size: .86rem; color: var(--ink-2); background: var(--code-bg); border-radius: 6px; padding: 6px 10px; margin-top: 4px; font-family: var(--f-mono); overflow-wrap: anywhere; white-space: pre-wrap; }
 
+/* vs-Qwen figures */
+.fig-scroll svg.wide { min-width: 760px; }
+.d-frozen { fill: color-mix(in srgb, var(--seg0) 14%, var(--panel)); stroke: var(--muted); stroke-width: 1; }
+.d-gone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.d-strike { stroke: var(--muted); stroke-width: 1.4; }
+.d-bar { fill: color-mix(in srgb, var(--accent) 50%, var(--panel)); }
+.d-bar-top { fill: var(--accent); }
+.d-axis { stroke: var(--muted); stroke-width: 1; }
+.d-tiny { font-size: 11px; }
+.d-bold { font-weight: 700; }
+.d-acc { fill: var(--accent); }
+.pipe-v { display: grid; }
+.pv-row { position: relative; display: grid; grid-template-columns: 12.5rem minmax(0, 1fr); gap: 12px; align-items: stretch; padding-bottom: 20px; }
+.pv-row:last-child { padding-bottom: 0; }
+.pv-row:not(:last-child)::after { content: "↓"; position: absolute; left: 6.25rem; bottom: 1px; transform: translateX(-50%); color: var(--muted); font-size: 13px; line-height: 18px; }
+.pv-step { background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 8px; padding: 8px 12px; display: grid; gap: 2px; align-content: center; }
+.pv-step.opt { border-style: dashed; }
+.pv-step b { font-size: .95rem; }
+.pv-step code { justify-self: start; font-size: 11.5px; }
+.pv-data { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: .88rem; line-height: 1.7; }
+.pv-data .mono { display: block; font-family: var(--f-mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); background: var(--code-bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0; }
+@media (max-width: 640px) { .pv-row { grid-template-columns: 1fr; gap: 6px; } .pv-row:not(:last-child)::after { left: 50%; } }
+
 /* programmer notes */
 details.dev { border: 1px dashed var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
 details.dev > summary { cursor: pointer; padding: 10px 14px; font-size: .9rem; color: var(--ink-2); list-style: none; display: flex; gap: 8px; align-items: center; }
@@ -1119,7 +1142,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
         <span class="step-tag">总结</span>
         <h2>和原版 Qwen 比，改了什么</h2>
       </div>
-      <p>一句话：<b>Qwen 本体的 Transformer 层基本没动</b>。没有改网络结构，没有加新词，tokenizer 也是原样。Kev 改的是四件事：怎么喂输入、读哪个位置、用什么目标训练、怎么把输出变成答案。</p>
+      <p>一句话：<b>Qwen 本体的 Transformer 层基本没动</b>。没有改网络结构，没有加新词，tokenizer 也是原样。Kev 改的是四件事：<b>怎么喂输入、读哪个位置、用什么目标训练、怎么把输出变成答案</b>。下面先一眼看全，再分模型结构、训练、推理三块细讲，每块都配图和例子。</p>
 
       <figure>
         <div class="fig-box flows">
@@ -1158,7 +1181,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
               <span class="st">文本</span><span class="ar">→</span>
               <span class="st">Transformer 层</span><span class="ar">→</span>
               <span class="st">LM head</span><span class="ar">→</span>
-              <span class="st">下一个 token 的交叉熵</span>
+              <span class="st">每个位置：下一个 token 的交叉熵</span>
             </div>
           </div>
           <div class="flow-row">
@@ -1169,7 +1192,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
               <span class="st new">Transformer 层（冻结）+ LoRA（训练）</span><span class="ar">→</span>
               <span class="st gone">LM head</span>
               <span class="st new">pointer head（从零训练）</span><span class="ar">→</span>
-              <span class="st new">只在选项上算交叉熵</span><span class="ar">→</span>
+              <span class="st new">每道题：只在选项上算交叉熵</span><span class="ar">→</span>
               <span class="st new">训练后拟合温度 T</span>
             </div>
           </div>
@@ -1179,68 +1202,413 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
             <span><i class="sw-st gone"></i>Kev 去掉了</span>
           </div>
         </div>
-        <figcaption>两条流水线的差别。原版的核心是"逐字生成"的循环；Kev 去掉了这个循环，一次前向就结束，前后各多了一段改写和整理。Kev-27B 不冻结 Transformer 层，而是全部训练。</figcaption>
+        <figcaption>一眼看全。原版的核心是"逐字生成"的循环；Kev 去掉了这个循环，一次前向就结束，前后各多了一段改写和整理。</figcaption>
       </figure>
 
-      <h3>训练</h3>
+      <!-- ---------------------------------------------------- 结构 -->
+      <h3>模型结构：哪些不变，哪些换掉</h3>
+      <p>把两个模型从输入到输出一层层摆在一起看。Kev 保留了 Qwen 的 embedding 和全部 Transformer 层，只在三个地方动手：给投影矩阵旁边挂 LoRA、拆掉最后的 LM head、在原来 LM head 的位置换上 pointer head。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 472" role="img" aria-label="原版 Qwen 和 Kev 的结构对比：embedding 和 N 层 Transformer 相同，Kev 的权重冻结并在投影旁挂 LoRA；Kev 去掉 LM head，换成读取两个位置的 pointer head；原版在 softmax 后采样并循环生成，Kev 一次前向就得到 K 个选项的概率。">
+            <defs>
+              <marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="ah5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-acc"/></marker>
+            </defs>
+            <text x="225" y="30" text-anchor="middle" class="d-txt d-bold">原版 Qwen</text>
+            <text x="664" y="30" text-anchor="middle" class="d-txt d-bold">Kev（0.8B / 4B / 9B）</text>
+
+            <rect x="50" y="46" width="350" height="38" rx="6" class="d-box"/>
+            <text x="225" y="70" text-anchor="middle" class="d-txt d-sm">Embedding：token → 向量</text>
+            <rect x="480" y="46" width="280" height="38" rx="6" class="d-frozen"/>
+            <text x="620" y="70" text-anchor="middle" class="d-txt d-sm">Embedding（不变，冻结）</text>
+            <line x1="225" y1="86" x2="225" y2="104" class="d-arrow" marker-end="url(#ah5)"/>
+            <line x1="620" y1="86" x2="620" y2="104" class="d-arrow" marker-end="url(#ah5)"/>
+
+            <rect x="50" y="108" width="350" height="158" rx="8" class="d-box"/>
+            <text x="64" y="128" class="d-txt d-sm d-muted">N 层，每层 = 注意力或 DeltaNet，再加 MLP</text>
+            <rect x="66" y="138" width="318" height="32" rx="5" class="d-box"/><text x="225" y="159" text-anchor="middle" class="d-txt d-sm">注意力：q / k / v / o 投影</text>
+            <rect x="66" y="180" width="318" height="32" rx="5" class="d-box"/><text x="225" y="201" text-anchor="middle" class="d-txt d-sm">Gated DeltaNet：in_proj / out_proj</text>
+            <rect x="66" y="222" width="318" height="32" rx="5" class="d-box"/><text x="225" y="243" text-anchor="middle" class="d-txt d-sm">MLP：gate / up / down 投影</text>
+
+            <rect x="480" y="108" width="280" height="158" rx="8" class="d-frozen"/>
+            <text x="494" y="128" class="d-txt d-sm d-muted">同样的 N 层（权重冻结）</text>
+            <rect x="494" y="138" width="252" height="32" rx="5" class="d-box"/><text x="620" y="159" text-anchor="middle" class="d-txt d-sm">注意力 q / k / v / o + 挡板</text>
+            <rect x="494" y="180" width="252" height="32" rx="5" class="d-box"/><text x="620" y="201" text-anchor="middle" class="d-txt d-sm">DeltaNet in_proj / out_proj</text>
+            <rect x="494" y="222" width="252" height="32" rx="5" class="d-box"/><text x="620" y="243" text-anchor="middle" class="d-txt d-sm">MLP gate / up / down</text>
+            <line x1="746" y1="154" x2="776" y2="154" class="d-arrow-acc"/>
+            <line x1="746" y1="196" x2="776" y2="196" class="d-arrow-acc"/>
+            <line x1="746" y1="238" x2="776" y2="238" class="d-arrow-acc"/>
+            <rect x="776" y="138" width="72" height="32" rx="5" class="d-op"/><text x="812" y="159" text-anchor="middle" class="d-txt d-sm">+ LoRA</text>
+            <rect x="776" y="180" width="72" height="32" rx="5" class="d-op"/><text x="812" y="201" text-anchor="middle" class="d-txt d-sm">+ LoRA</text>
+            <rect x="776" y="222" width="72" height="32" rx="5" class="d-op"/><text x="812" y="243" text-anchor="middle" class="d-txt d-sm">+ LoRA</text>
+            <text x="812" y="274" text-anchor="middle" class="d-txt d-sm d-acc">rank 16，可训练</text>
+
+            <line x1="225" y1="268" x2="225" y2="284" class="d-arrow" marker-end="url(#ah5)"/>
+            <line x1="620" y1="268" x2="620" y2="284" class="d-arrow" marker-end="url(#ah5)"/>
+            <rect x="50" y="288" width="350" height="36" rx="6" class="d-box"/>
+            <text x="225" y="311" text-anchor="middle" class="d-txt d-sm">最后一层 hidden state：每个位置一份</text>
+            <rect x="480" y="288" width="280" height="36" rx="6" class="d-box"/>
+            <text x="620" y="311" text-anchor="middle" class="d-txt d-sm">最后一层 hidden state：每个位置一份</text>
+
+            <line x1="225" y1="326" x2="225" y2="344" class="d-arrow" marker-end="url(#ah5)"/>
+            <rect x="50" y="348" width="350" height="40" rx="6" class="d-box"/>
+            <text x="225" y="373" text-anchor="middle" class="d-txt d-sm">LM head：d → 词表大小，每个 token 一个分数</text>
+            <rect x="480" y="348" width="110" height="40" rx="6" class="d-gone"/>
+            <text x="535" y="373" text-anchor="middle" class="d-txt d-sm d-muted">LM head</text>
+            <line x1="494" y1="368" x2="576" y2="368" class="d-strike"/>
+            <text x="535" y="402" text-anchor="middle" class="d-txt d-sm d-muted">去掉</text>
+            <line x1="727" y1="326" x2="727" y2="344" class="d-arrow-acc" marker-end="url(#ah5a)"/>
+            <text x="737" y="340" class="d-txt d-sm d-acc">只取 &lt;/opt&gt;、&lt;decide&gt;</text>
+            <rect x="606" y="348" width="242" height="40" rx="6" class="d-op"/>
+            <text x="727" y="373" text-anchor="middle" class="d-txt d-sm">Pointer head：W_q、W_k，d → 256</text>
+
+            <line x1="225" y1="390" x2="225" y2="408" class="d-arrow" marker-end="url(#ah5)"/>
+            <rect x="50" y="412" width="350" height="40" rx="6" class="d-box"/>
+            <text x="225" y="437" text-anchor="middle" class="d-txt d-sm">softmax（整个词表）→ 采样下一个 token</text>
+            <line x1="727" y1="390" x2="727" y2="408" class="d-arrow-acc" marker-end="url(#ah5a)"/>
+            <rect x="480" y="412" width="368" height="40" rx="6" class="d-op"/>
+            <text x="664" y="437" text-anchor="middle" class="d-txt d-sm">÷ T，softmax（这道题的 K 个选项）→ 概率</text>
+
+            <path d="M50,432 H26 V65 H46" class="d-arrow" marker-end="url(#ah5)"/>
+            <text x="17" y="250" transform="rotate(-90 17 250)" text-anchor="middle" class="d-txt d-sm d-muted">生成的 token 接回输入，循环</text>
+            <text x="664" y="468" text-anchor="middle" class="d-txt d-sm d-muted">没有循环：一次前向就结束</text>
+          </svg>
+        </div>
+        <figcaption>灰底是冻结不动的部分，紫框是 Kev 新增或训练的部分，虚线框是去掉的部分。左边那条回到顶部的箭头，就是原版"生成一个 token、接回输入、再算一遍"的循环；Kev 没有这条线。Kev-27B 不同：它不冻结，所有权重都训练，也就没有 LoRA。</figcaption>
+      </figure>
+      <ul class="plain">
+        <li><b>LoRA 是什么：</b>在每个被选中的投影矩阵 W 旁边加一个小的低秩修正 ΔW = B·A（rank 16），实际用的是 W + ΔW。W 不动，只训练 A 和 B。发布时只发这个小 adapter；加载时 Kev 会把 ΔW 直接加进 W，推理时就没有额外开销。</li>
+        <li><b>为什么去掉 LM head：</b>它的作用是把 hidden state 变成"整个词表上每个 token 的分数"，用来生成下一个字。Kev 不生成字，用不到它。</li>
+        <li><b>为什么要新的 pointer head：</b>每道题的选项个数和内容都不一样，固定类别数的分类头（比如"永远输出 3 类"）做不到。pointer head 给每个选项各算一个分数，有几个选项就算几个。</li>
+        <li><b>挡板不是新参数：</b>它只是传给注意力层的一张掩码表，不改任何权重。</li>
+      </ul>
+
+      <!-- ---------------------------------------------------- 同一个任务 -->
+      <h3>同一个任务，两种用法</h3>
+      <p>还是那张工单，问"该交给哪个部门"。用原版 Qwen 的对话版和用 Kev，你要做的事情完全不同：</p>
+      <div class="cards two">
+        <div class="card">
+          <span class="tp">用原版 Qwen（对话版）</span>
+          <p>你要自己写提示词，套上 Qwen 的对话格式：</p>
+<pre class="wrap"><code><span class="sp-t">&lt;|im_start|&gt;</span>user
+工单：鞋子晚到了两周，尺码还不对。另外我看到卡上被扣了两次钱。
+该交给哪个部门？只回答 returns、shipping 或 billing。<span class="sp-t">&lt;|im_end|&gt;</span>
+<span class="sp-t">&lt;|im_start|&gt;</span>assistant</code></pre>
+          <p>它会一个字一个字地写出回答，可能是（示意）：</p>
+          <ul>
+            <li><code>returns</code></li>
+            <li><code>Returns</code></li>
+            <li><code>应该交给 returns，因为尺码不对……</code></li>
+            <li><code>returns 和 billing 都有可能</code></li>
+          </ul>
+          <p>你还得自己：从回答里抠出选项、处理不合规的回答、出错时重试。想要概率，只能问很多遍数票，或者读第一个 token 的概率；选项名被切成好几个 token 时，后一种就不准了。三道题要么问三次，要么让它写 JSON 再解析。</p>
+        </div>
+        <div class="card">
+          <span class="tp">用 Kev</span>
+          <p>你只发一个 JSON 请求，三道题放在一起：</p>
+<pre class="wrap"><code>{"state": "鞋子晚到了两周，尺码还不对。另外我看到卡上被扣了两次钱。",
+ "questions": {
+   "department": {"type": "choice", "instructions": "该交给哪个部门？",
+     "criteria": {"returns": "换货、退款、错发或损坏",
+                  "shipping": "物流状态、延误、丢件",
+                  "billing": "扣款、发票、支付问题"}},
+   "escalate": {"type": "noul", "instructions": "需要紧急转人工吗？"},
+   "frustration": {"type": "score", "instructions": "客户有多生气？",
+     "criteria": ["平静", "有点生气", "非常生气"]}}}</code></pre>
+          <p>返回的永远是固定格式，每道题都带概率：</p>
+<pre class="wrap"><code>"department": {"choice": "returns", "confidence": 0.21,
+  "probabilities": {"returns": 0.47, "shipping": 0.28, "billing": 0.25}},
+"escalate":    {"noul": 0.93},
+"frustration": {"score": 1.44, "confidence": 0.34, …}</code></pre>
+          <p>不需要解析，也不会答非所问。三道题共用一次对材料的阅读。</p>
+        </div>
+      </div>
+      <p class="small muted">左边的提示词和回答只是示意，用来说明要处理的情况，不是实测的 Qwen 输出。右边的返回值是 README 里 Kev-4B 的真实结果（对英文原文）。</p>
+
+      <!-- ---------------------------------------------------- 训练 -->
+      <h3>训练：loss 从哪来</h3>
+      <p>训练上最大的差别是"在哪里算 loss、在多少个类别里选"。原版在<b>每个位置</b>都算一次 loss，每次都要在<b>整个词表</b>里猜下一个 token；Kev 每道题只算<b>一次</b>，只在这道题的 <b>K 个选项</b>里选。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 322" role="img" aria-label="训练 loss 对比：原版 Qwen 在每个 token 位置都要在整个词表里猜下一个 token，8 个位置算 8 个 loss；Kev 只把三个选项结尾和 decide 位置交给 pointer head，得到三个概率，只对正确选项算一次 loss。">
+            <defs>
+              <marker id="ah6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="ah6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-acc"/></marker>
+            </defs>
+            <text x="20" y="26" class="d-txt d-bold">原版 Qwen：每个位置都算一次 loss</text>
+            <text x="20" y="45" class="d-txt d-sm d-muted">每个位置都要猜下一个 token，紫字是要猜中的答案</text>
+            <text x="51" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→晚到</text>
+            <text x="121" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→了</text>
+            <text x="191" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→两周</text>
+            <text x="261" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→，</text>
+            <text x="331" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→尺码</text>
+            <text x="401" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→不对</text>
+            <text x="471" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→。</text>
+            <text x="541" y="60" text-anchor="middle" class="d-txt d-sm d-acc">→…</text>
+            <rect x="20" y="66" width="62" height="30" rx="5" class="d-box"/><text x="51" y="86" text-anchor="middle" class="d-txt d-sm">鞋子</text>
+            <rect x="90" y="66" width="62" height="30" rx="5" class="d-box"/><text x="121" y="86" text-anchor="middle" class="d-txt d-sm">晚到</text>
+            <rect x="160" y="66" width="62" height="30" rx="5" class="d-box"/><text x="191" y="86" text-anchor="middle" class="d-txt d-sm">了</text>
+            <rect x="230" y="66" width="62" height="30" rx="5" class="d-box"/><text x="261" y="86" text-anchor="middle" class="d-txt d-sm">两周</text>
+            <rect x="300" y="66" width="62" height="30" rx="5" class="d-box"/><text x="331" y="86" text-anchor="middle" class="d-txt d-sm">，</text>
+            <rect x="370" y="66" width="62" height="30" rx="5" class="d-box"/><text x="401" y="86" text-anchor="middle" class="d-txt d-sm">尺码</text>
+            <rect x="440" y="66" width="62" height="30" rx="5" class="d-box"/><text x="471" y="86" text-anchor="middle" class="d-txt d-sm">不对</text>
+            <rect x="510" y="66" width="62" height="30" rx="5" class="d-box"/><text x="541" y="86" text-anchor="middle" class="d-txt d-sm">。</text>
+            <text x="20" y="118" class="d-txt d-sm d-muted">8 个位置 → 8 个 loss，每个都是"在整个词表里选一个 token"</text>
+            <text x="735" y="48" text-anchor="middle" class="d-txt d-sm">一个位置的目标：整个词表</text>
+            <line x1="612" y1="96" x2="858" y2="96" class="d-axis"/>
+            <rect x="700" y="66" width="8" height="30" class="d-bar-top"/>
+            <text x="714" y="74" class="d-txt d-sm">"晚到" = 1</text>
+            <text x="735" y="114" text-anchor="middle" class="d-txt d-sm d-muted">其余所有 token = 0</text>
+
+            <line x1="20" y1="136" x2="860" y2="136" class="d-dash"/>
+
+            <text x="20" y="162" class="d-txt d-bold">Kev：每道题只算一次 loss，只在 K 个选项里选</text>
+            <rect x="320" y="190" width="340" height="36" rx="6" class="d-op"/>
+            <text x="490" y="213" text-anchor="middle" class="d-txt d-sm">pointer head → 3 个分数 → softmax → 3 个概率</text>
+            <line x1="662" y1="208" x2="680" y2="208" class="d-arrow" marker-end="url(#ah6)"/>
+            <rect x="684" y="184" width="176" height="48" rx="6" class="d-box"/>
+            <text x="772" y="204" text-anchor="middle" class="d-txt d-sm">标签：billing（账单）</text>
+            <text x="772" y="223" text-anchor="middle" class="d-txt d-sm d-acc">loss = −log p(billing)</text>
+            <line x1="346" y1="248" x2="346" y2="230" class="d-arrow-acc" marker-end="url(#ah6a)"/>
+            <line x1="454" y1="248" x2="454" y2="230" class="d-arrow-acc" marker-end="url(#ah6a)"/>
+            <line x1="562" y1="248" x2="562" y2="230" class="d-arrow-acc" marker-end="url(#ah6a)"/>
+            <line x1="627" y1="248" x2="627" y2="230" class="d-arrow-acc" marker-end="url(#ah6a)"/>
+            <rect x="20" y="250" width="62" height="30" rx="5" class="d-seg0"/><text x="51" y="270" text-anchor="middle" class="d-mono">&lt;state&gt;</text>
+            <rect x="88" y="250" width="60" height="30" rx="5" class="d-seg0"/><text x="118" y="270" text-anchor="middle" class="d-txt d-sm">鞋子…</text>
+            <rect x="154" y="250" width="40" height="30" rx="5" class="d-seg1"/><text x="174" y="270" text-anchor="middle" class="d-mono">&lt;q&gt;</text>
+            <rect x="200" y="250" width="52" height="30" rx="5" class="d-seg1"/><text x="226" y="270" text-anchor="middle" class="d-txt d-sm">部门?</text>
+            <rect x="258" y="250" width="56" height="30" rx="5" class="d-seg1"/><text x="286" y="270" text-anchor="middle" class="d-txt d-sm">returns</text>
+            <rect x="320" y="250" width="52" height="30" rx="5" class="d-read"/><text x="346" y="270" text-anchor="middle" class="d-mono">&lt;/opt&gt;</text>
+            <rect x="378" y="250" width="44" height="30" rx="5" class="d-seg1"/><text x="400" y="270" text-anchor="middle" class="d-txt d-sm">ship…</text>
+            <rect x="428" y="250" width="52" height="30" rx="5" class="d-read"/><text x="454" y="270" text-anchor="middle" class="d-mono">&lt;/opt&gt;</text>
+            <rect x="486" y="250" width="44" height="30" rx="5" class="d-seg1"/><text x="508" y="270" text-anchor="middle" class="d-txt d-sm">bill…</text>
+            <rect x="536" y="250" width="52" height="30" rx="5" class="d-read"/><text x="562" y="270" text-anchor="middle" class="d-mono">&lt;/opt&gt;</text>
+            <rect x="594" y="250" width="66" height="30" rx="5" class="d-read"/><text x="627" y="270" text-anchor="middle" class="d-mono">&lt;decide&gt;</text>
+            <text x="20" y="306" class="d-txt d-sm d-muted">材料和题目文字本身没有 loss；但梯度会从这一个 loss 经过注意力流回所有读过的 token，所以模型照样学会怎么读材料。</text>
+          </svg>
+        </div>
+        <figcaption>上：原版每个位置都在整个词表里猜下一个 token（"→晚到"表示这个位置要猜中"晚到"）。下：Kev 只把紫框位置交给 pointer head，一道题只产生一个 loss，类别数就是这道题的选项数。图里省略了每个选项前面的 <code>&lt;opt&gt;</code>，选项文字也缩写了。</figcaption>
+      </figure>
+      <div class="box ex">
+        <span class="lab ex">例子：同一句话，两种 loss</span>
+        <p>原版看到"鞋子晚到了两周"，要分别猜对"晚到""了""两周"……每猜一个，都是在整个词表里选，猜错哪个都扣分。Kev 看到整张工单和"该交给哪个部门？"，只需要回答一件事：returns、shipping、billing 三选一。如果标签是 billing、模型给了 25%，这道题就扣 −log 0.25 ≈ 1.39 分，整道题只扣这一次。</p>
+      </div>
+      <p>其他训练上的改动，连同原因一起列在下面：</p>
       <div class="tbl">
         <table>
-          <thead><tr><th>环节</th><th>原版 Qwen</th><th>Kev</th></tr></thead>
+          <thead><tr><th>环节</th><th>原版 Qwen</th><th>Kev</th><th>为什么 / 依据</th></tr></thead>
           <tbody>
-            <tr><td>起点模型</td><td>Qwen3.5-0.8B / 4B / 9B-Base（只预训练过）；Qwen3.8-27B（官方已 post-train）</td><td>直接用这些 checkpoint，钉死到具体的 revision 哈希。27B 用的是官方 post-train 版，Qwen 用过什么数据不清楚</td></tr>
-            <tr><td>输出层</td><td>LM head，输出整个词表的 logit</td><td>去掉 LM head（只加载 <code>.model</code>）；新加 pointer head，两个 <code>Linear(d → 256)</code>，随机初始化</td></tr>
-            <tr><td>可训练参数</td><td>—</td><td>0.8B / 4B / 9B：原权重冻结，只训练 LoRA 和 pointer head。LoRA 为 rank 16、alpha 32、dropout 0.05，挂在 attention、MLP 和 DeltaNet 的投影上。27B：所有权重都训练</td></tr>
-            <tr><td>词表</td><td>—</td><td>不加新 token，复用 5 个本来就有的 special token；它们的 embedding 也不训练</td></tr>
-            <tr><td>输入格式</td><td>自然语言；对话模型要套 chat template</td><td>不用 chat template，没有 system prompt。每条数据就是一条 API 请求，每道题多一个 <code>label</code>，走和线上完全相同的改写流程</td></tr>
-            <tr><td>注意力和位置</td><td>因果掩码，位置 0, 1, 2…</td><td>纯注意力 backbone：加挡板，每道题的位置从 state 后面重新编号。混合 backbone：每道题单独一行；<code>--shared_prefix 1</code> 让 state 只算一次、梯度照样回传（全参数训练时默认打开）</td></tr>
-            <tr><td>数据</td><td>海量通用文本、对话</td><td><code>decision-v7</code>：10 个公开数据集抽的 10,000 条，加 896 条生成的策略题和 1,680 条生成的规则题。每个 epoch 重新做增强：打乱选项、加"以上都不是"、加干扰项、出最小差异对。state 最长 384 token（追加训练到 7,552，27B 到 32,768）。没有用 Jev 的输出</td></tr>
-            <tr><td>损失</td><td>下一个 token 的交叉熵（词表上）</td><td><b>只在这道题的 K 个选项上算交叉熵</b>，完全没有语言模型损失；训练时 T = 1。可选损失（<code>--perm_kl</code>、<code>--ord_w</code>、<code>--anchor</code> 等）发布的模型都没开</td></tr>
-            <tr><td>优化</td><td>—</td><td>0.8B / 4B / 9B：AdamW（weight decay 0.01），OneCycleLR（前 10% warmup，之后余弦下降），梯度裁剪 1.0，bf16 autocast 加 fp32 master 权重；学习率 1e-4（0.8B）或 5e-5（4B / 9B），2 个 epoch；之后用 <code>--init_from</code> 追加训练日期题、证据被删掉的题、长文档和技能数据。27B：8 × H200，学习率 2e-6，1 个 epoch，145,840 条，再和早先的 LoRA 版按 0.85 : 0.15 做权重平均</td></tr>
-            <tr><td>训练之后</td><td>—</td><td>在没训练过的数据上拟合温度 T，写进 <code>head.pt</code>。发布的 checkpoint = LoRA adapter + <code>head.pt</code>（head 权重、温度、base revision 等）+ tokenizer；27B 是 51 GB 完整 bf16 权重 + <code>head.pt</code></td></tr>
+            <tr><td>起点模型</td><td>Base（只预训练）或对话版（post-train 过）</td><td>0.8B / 4B / 9B 用 Base，钉死到具体 revision；27B 用官方 post-train 版</td><td>PLAN.md 记录过：同样训练后，9B 的 post-train 版日期计算掉得更多（0.70 → 0.47），Base 版是 0.82 → 0.72</td></tr>
+            <tr><td>输出层</td><td>LM head</td><td>去掉，换成 pointer head（W_q、W_k：d → 256，随机初始化）</td><td>不生成字；选项个数每题不同，固定类别的分类头做不到</td></tr>
+            <tr><td>可训练参数</td><td>预训练时全部</td><td>LoRA（rank 16、alpha 32、dropout 0.05）+ pointer head，原权重冻结；27B 全部训练</td><td>训练便宜，发布只需一个小 adapter；27B 例外，发布 51 GB 全量权重</td></tr>
+            <tr><td>词表</td><td>—</td><td>不加新 token，复用 5 个 special token，embedding 不训练</td><td>不用加 embedding 行；README 记录：用 peft 加可训练 token 曾导致内存问题</td></tr>
+            <tr><td>输入格式</td><td>自然语言；对话版要套 chat template</td><td>结构化请求 → 和线上完全相同的改写 → special token 序列；不用 chat template</td><td>训练时和服务时，模型看到的 token 逐字节一致</td></tr>
+            <tr><td>注意力和位置</td><td>因果掩码，位置连续编号</td><td>加挡板，每道题从 state 后面重新编号；混合架构每题单独一行</td><td>题与题互不影响；state 只需要算一次</td></tr>
+            <tr><td>损失</td><td>每个位置，在整个词表上算交叉熵</td><td>每道题一次，只在 K 个选项上算交叉熵；没有语言模型损失</td><td>直接优化"给对的选项高概率"；交叉熵是恰当评分规则，输出才有概率意义</td></tr>
+            <tr><td>数据</td><td>海量通用文本和对话</td><td><code>decision-v7</code>：10,000 条公开数据 + 896 条策略题 + 1,680 条规则题；每个 epoch 重新打乱选项、加"以上都不是"、加干扰项</td><td>防止模型学到"总选第一个"这类捷径</td></tr>
+            <tr><td>优化</td><td>—</td><td>AdamW（weight decay 0.01）、OneCycleLR（10% warmup）、梯度裁剪 1.0、bf16 autocast；lr 1e-4（0.8B）或 5e-5（4B / 9B），2 个 epoch。27B：8 × H200，lr 2e-6，1 个 epoch，再与 LoRA 版按 0.85 : 0.15 做权重平均</td><td>—</td></tr>
+            <tr><td>训练之后</td><td>—</td><td>在没训练过的数据上拟合温度 T，写进 <code>head.pt</code></td><td>交叉熵训出来的模型在新数据上偏自信</td></tr>
           </tbody>
         </table>
       </div>
 
-      <h3>推理：输入要改写什么</h3>
-      <p>按执行顺序，一个请求进来之后要经过这 7 步：</p>
-      <ol class="steps-list">
-        <li><p><b>校验请求。</b>pydantic 检查题型和字段，选项数必须在 1 到 255 之间，不合法返回 422。</p></li>
-        <li><p><b>（可选）补日期信息。</b><code>KEV_DATE_FACTS=1</code> 时，在 state 后面追加"两个日期差几天"，因为模型自己算不准日期。</p>
-          <div class="mini-ex">"2026-07-22 下单，2026-08-03 才到"
-→ 末尾追加 "date_facts: 2026-08-03 is 12 days after 2026-07-22."</div>
-          <p class="small muted">只认 <code>2026-07-22</code> 和 <code>July 22, 2026</code> 这两种写法，"7 月 22 日"认不出来。</p></li>
-        <li><p><b>把 JSON 展开成文本（<code>render</code>）。</b>state 或 instructions 是对象、数组时，变成"键: 值"的文本，字段名保留下来当标签。</p>
-          <div class="mini-ex">{"标题": "重复扣款", "正文": "同一杯咖啡扣了两次"}
-→ "标题: 重复扣款
-   正文: 同一杯咖啡扣了两次"</div></li>
-        <li><p><b>三种题统一成选项列表（<code>to_record</code>）。</b>noul 变成 <code>no</code> / <code>yes</code>，有描述时写成 <code>yes: 描述</code>；choice 写成 <code>名字: 描述</code>；score 是各等级的描述。题目 id 不进模型，只留着把概率映射回去。</p></li>
-        <li><p><b>转义，再分词。</b>用户文本里的 <code>&lt;|x|&gt;</code> 先改写成 <code>&lt;¦x¦&gt;</code>，防止伪造 special token；分词时 <code>add_special_tokens=False</code>，也不套 chat template。</p></li>
-        <li><p><b>拼序列（<code>encode</code>）。</b>插入 <code>&lt;state&gt;</code> <code>&lt;q&gt;</code> <code>&lt;opt&gt;</code> <code>&lt;/opt&gt;</code> <code>&lt;decide&gt;</code>，记下每个 token 属于哪一段、它的座位号，以及读出位置 <code>opt_idx</code> 和 <code>decide_idx</code>。</p></li>
-        <li><p><b>检查长度。</b>state 超过 65,536 token 直接返回 422，并告诉你实际长度，不会悄悄截断；设 <code>KEV_TRUNCATE_STATES=1</code> 才会截断，响应里标出 <code>truncated</code>。每道题那一行最多比 state 多 8,192 token。</p></li>
-      </ol>
+      <!-- ---------------------------------------------------- 推理 1 -->
+      <h3>推理 ①：输入要改写什么</h3>
+      <p>拿上面那个 JSON 请求，看它在进模型之前经过的 7 步。左边是这一步做什么，右边是例子在这一步之后变成什么样：</p>
+      <div class="pipe-v">
+        <div class="pv-row">
+          <div class="pv-step"><b>1. 校验请求</b><code>pydantic</code></div>
+          <div class="pv-data">检查题型和字段。这里 3 道题都合法；department 有 3 个选项（允许 1 到 255 个）。不合法直接返回 422。</div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step opt"><b>2. 补日期（可选）</b><code>KEV_DATE_FACTS=1</code></div>
+          <div class="pv-data">这张工单没有日期，不变。如果 state 是"2026-07-22 下单，2026-08-03 才到"，末尾会追加：<span class="mono">date_facts: 2026-08-03 is 12 days after 2026-07-22.</span>只认 2026-07-22 和 July 22, 2026 这两种写法。</div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step"><b>3. 展开 JSON</b><code>render</code></div>
+          <div class="pv-data">这里 state 是字符串，原样保留。如果 state 是对象，会展开成"键: 值"的文本：<span class="mono">{"渠道": "邮件", "正文": "鞋子晚到了两周…"}
+→ 渠道: 邮件
+  正文: 鞋子晚到了两周…</span></div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step"><b>4. 统一成选项列表</b><code>to_record</code></div>
+          <div class="pv-data"><span class="mono">department  → ["returns: 换货、退款、错发或损坏",
+                "shipping: 物流状态、延误、丢件",
+                "billing: 扣款、发票、支付问题"]
+escalate    → ["no", "yes"]
+frustration → ["平静", "有点生气", "非常生气"]</span>题目 id（department 这些）从这一步起不再进入模型，只留着把答案映射回去。</div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step"><b>5. 转义，再分词</b><code>user_tokens</code></div>
+          <div class="pv-data">用户文字里如果出现 <code>&lt;|box_end|&gt;</code>，先改写成 <code>&lt;¦box_end¦&gt;</code>，防止伪造 special token。分词时 <code>add_special_tokens=False</code>，不套 chat template。</div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step"><b>6. 拼成序列</b><code>encode</code></div>
+          <div class="pv-data"><span class="mono">&lt;state&gt;鞋子晚到了两周…&lt;q&gt;该交给哪个部门？&lt;opt&gt;returns: 换货…&lt;/opt&gt;&lt;opt&gt;shipping: …&lt;/opt&gt;&lt;opt&gt;billing: …&lt;/opt&gt;&lt;decide&gt;&lt;q&gt;需要紧急转人工吗？&lt;opt&gt;no&lt;/opt&gt;&lt;opt&gt;yes&lt;/opt&gt;&lt;decide&gt;&lt;q&gt;…</span>同时记下每个 token 属于哪一段（seg）、它的座位号（每道题从 state 后重新编号），以及读出位置 opt_idx、decide_idx。</div>
+        </div>
+        <div class="pv-row">
+          <div class="pv-step"><b>7. 检查长度</b><code>admit</code></div>
+          <div class="pv-data">这张工单只有几十个 token，远低于 65,536 的上限。超长时返回 422 并告诉你实际长度，不会悄悄截断；设 <code>KEV_TRUNCATE_STATES=1</code> 才会截断，响应里标出 <code>truncated</code>。</div>
+        </div>
+      </div>
+      <p class="small muted">紫框是每一步的名字和对应函数，虚线框表示这一步默认关闭。原版 Qwen 只有"分词"这一步，最多再加一个 chat template。</p>
 
-      <h3>推理：前向计算</h3>
+      <!-- ---------------------------------------------------- 推理 2 -->
+      <h3>推理 ②：前向计算</h3>
+      <p>原版要回答问题，得先读完 prompt，再一个 token 一个 token 地写出答案，<b>每写一个 token 就要把模型再跑一遍</b>。Kev 不写字，读完就能直接取概率。同样是三道题：</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 290" role="img" aria-label="推理时间线对比：原版 Qwen 先 prefill，再逐个 token decode，每个 token 跑一次模型，最后解析 JSON；Kev 先读一遍 state 存进缓存，再把三道题的行一起算，经 pointer head 和 softmax 直接得到固定格式的 JSON。">
+            <defs>
+              <marker id="ah7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+            </defs>
+            <text x="20" y="28" class="d-txt d-bold">原版 Qwen：让它把三道题的答案写成 JSON</text>
+            <text x="228" y="52" class="d-txt d-sm d-muted">decode：每写一个 token，就要再跑一遍模型</text>
+            <rect x="20" y="60" width="200" height="36" rx="5" class="d-box"/>
+            <text x="120" y="83" text-anchor="middle" class="d-txt d-sm">prefill：读完整个 prompt</text>
+            <rect x="228" y="60" width="40" height="36" rx="4" class="d-box"/><text x="248" y="83" text-anchor="middle" class="d-mono d-tiny">{"</text>
+            <rect x="274" y="60" width="40" height="36" rx="4" class="d-box"/><text x="294" y="83" text-anchor="middle" class="d-mono d-tiny">dep</text>
+            <rect x="320" y="60" width="40" height="36" rx="4" class="d-box"/><text x="340" y="83" text-anchor="middle" class="d-mono d-tiny">art</text>
+            <rect x="366" y="60" width="40" height="36" rx="4" class="d-box"/><text x="386" y="83" text-anchor="middle" class="d-mono d-tiny">ment</text>
+            <rect x="412" y="60" width="40" height="36" rx="4" class="d-box"/><text x="432" y="83" text-anchor="middle" class="d-mono d-tiny">":"</text>
+            <rect x="458" y="60" width="40" height="36" rx="4" class="d-box"/><text x="478" y="83" text-anchor="middle" class="d-mono d-tiny">ret</text>
+            <rect x="504" y="60" width="40" height="36" rx="4" class="d-box"/><text x="524" y="83" text-anchor="middle" class="d-mono d-tiny">urns</text>
+            <rect x="550" y="60" width="40" height="36" rx="4" class="d-box"/><text x="570" y="83" text-anchor="middle" class="d-mono d-tiny">",</text>
+            <rect x="596" y="60" width="40" height="36" rx="4" class="d-box"/><text x="616" y="83" text-anchor="middle" class="d-mono d-tiny">"esc</text>
+            <rect x="642" y="60" width="40" height="36" rx="4" class="d-box"/><text x="662" y="83" text-anchor="middle" class="d-mono d-tiny">…</text>
+            <line x1="684" y1="78" x2="708" y2="78" class="d-arrow" marker-end="url(#ah7)"/>
+            <rect x="712" y="60" width="148" height="36" rx="5" class="d-box"/>
+            <text x="786" y="83" text-anchor="middle" class="d-txt d-sm">解析 JSON</text>
+            <text x="20" y="120" class="d-txt d-sm d-muted">模型要跑 1 + 几十次（每个输出 token 一次）；写出来的不一定是合法 JSON，还要处理出错</text>
+
+            <line x1="20" y1="140" x2="860" y2="140" class="d-dash"/>
+
+            <text x="20" y="168" class="d-txt d-bold">Kev：读一遍，直接取概率</text>
+            <text x="228" y="188" class="d-txt d-sm d-muted">三道题的行一起算，共用 state 缓存</text>
+            <rect x="20" y="196" width="200" height="56" rx="5" class="d-seg0"/>
+            <text x="120" y="220" text-anchor="middle" class="d-txt d-sm">state：读一遍</text>
+            <text x="120" y="239" text-anchor="middle" class="d-txt d-sm d-muted">结果存进缓存</text>
+            <rect x="228" y="196" width="240" height="17" rx="3" class="d-seg1"/><text x="348" y="209" text-anchor="middle" class="d-txt d-tiny">题 1：部门</text>
+            <rect x="228" y="215.5" width="240" height="17" rx="3" class="d-seg2"/><text x="348" y="228.5" text-anchor="middle" class="d-txt d-tiny">题 2：紧急</text>
+            <rect x="228" y="235" width="240" height="17" rx="3" class="d-box"/><text x="348" y="248" text-anchor="middle" class="d-txt d-tiny">题 3：生气</text>
+            <line x1="470" y1="224" x2="494" y2="224" class="d-arrow" marker-end="url(#ah7)"/>
+            <rect x="498" y="196" width="150" height="56" rx="5" class="d-op"/>
+            <text x="573" y="220" text-anchor="middle" class="d-txt d-sm">pointer head</text>
+            <text x="573" y="239" text-anchor="middle" class="d-txt d-sm">÷ T，softmax</text>
+            <line x1="650" y1="224" x2="674" y2="224" class="d-arrow" marker-end="url(#ah7)"/>
+            <rect x="678" y="196" width="182" height="56" rx="5" class="d-box"/>
+            <text x="769" y="220" text-anchor="middle" class="d-txt d-sm">固定格式的 JSON</text>
+            <text x="769" y="239" text-anchor="middle" class="d-txt d-sm d-muted">概率、答案、把握</text>
+            <text x="20" y="276" class="d-txt d-sm d-muted">模型跑 2 次：state 一次，所有题目行一次（题很多时分几批）；不生成文字，所以输出格式不会错</text>
+          </svg>
+        </div>
+        <figcaption>示意图，方块长短不代表实际耗时；原版那一行的 token 切分也只是示意。实测：Kev-4B 在 H100 上回答 6 道题的模型时间约 18 毫秒。同一篇材料再来一次时，Kev 连 state 那一次都省了，直接用缓存。</figcaption>
+      </figure>
       <div class="tbl">
         <table>
           <thead><tr><th></th><th>原版 Qwen</th><th>Kev</th></tr></thead>
           <tbody>
-            <tr><td>生成方式</td><td>prefill 之后逐个 token decode，要采样，要处理停止符</td><td><b>只做一次 prefill</b>，不 decode，不采样，没有停止符</td></tr>
-            <tr><td>多道题</td><td>—</td><td>混合架构：state 算一次，缓存复制给每道题，各跑一行。纯注意力：一条打包序列加挡板</td></tr>
+            <tr><td>生成方式</td><td>prefill 之后逐个 token decode，要采样，要处理停止符</td><td><b>只做 prefill</b>，不 decode，不采样，没有停止符</td></tr>
+            <tr><td>多道题</td><td>分开问，或者让它一次写出所有答案</td><td>混合架构：state 算一次，缓存复制给每道题，各跑一行。纯注意力：一条打包序列加挡板</td></tr>
             <tr><td>跨请求缓存</td><td>一般的 KV cache</td><td>同一篇 state 再来，直接复用缓存，只算题目那几行。按最近使用淘汰，默认最多存 4 篇、共 65,536 token</td></tr>
             <tr><td>精度和加速</td><td>—</td><td>每批最多 64 个请求；CUDA 上用 CUDA graphs 和 Triton 融合算子；默认 bf16；加载时把 LoRA 合并进权重；Mac 上用 MLX</td></tr>
           </tbody>
         </table>
       </div>
 
-      <h3>推理：输出要做什么后处理</h3>
+      <!-- ---------------------------------------------------- 推理 3 -->
+      <h3>推理 ③：输出要做什么后处理</h3>
+      <p>原版的输出是一段文字，后处理是"从文字里把答案抠出来"：正则或 JSON 解析、把"Returns"映射成 returns、不合规就重试，而且拿不到可信的概率。Kev 的输出是一串数字，后处理是固定的四步算术，三种题型各走一遍：</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 378" role="img" aria-label="输出后处理：三种题型各自从 pointer head 的分数开始，除以温度 2.41，做 softmax 得到概率，再整理成 JSON。是非题 0.93；选择题 returns，把握 0.21；打分题 1.44 级，把握 0.34。">
+            <defs>
+              <marker id="ah8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+            </defs>
+            <text x="155" y="26" text-anchor="middle" class="d-txt d-bold">是非题 · 紧急转人工？</text>
+            <text x="440" y="26" text-anchor="middle" class="d-txt d-bold">选择题 · 哪个部门？</text>
+            <text x="725" y="26" text-anchor="middle" class="d-txt d-bold">打分题 · 有多生气？</text>
+
+            <rect x="20" y="40" width="270" height="44" rx="6" class="d-box"/>
+            <rect x="305" y="40" width="270" height="44" rx="6" class="d-box"/>
+            <rect x="590" y="40" width="270" height="44" rx="6" class="d-box"/>
+            <text x="30" y="55" class="d-txt d-tiny d-muted">pointer head 的分数 z</text>
+            <text x="315" y="55" class="d-txt d-tiny d-muted">pointer head 的分数 z</text>
+            <text x="600" y="55" class="d-txt d-tiny d-muted">pointer head 的分数 z</text>
+            <text x="155" y="75" text-anchor="middle" class="d-mono">[0, 6.23]</text>
+            <text x="440" y="75" text-anchor="middle" class="d-mono">[1.52, 0.27, 0]</text>
+            <text x="725" y="75" text-anchor="middle" class="d-mono">[−14, 0.57, 0]</text>
+
+            <line x1="155" y1="86" x2="155" y2="104" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="440" y1="86" x2="440" y2="104" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="725" y1="86" x2="725" y2="104" class="d-arrow" marker-end="url(#ah8)"/>
+            <text x="163" y="99" class="d-txt d-tiny d-muted">÷ T（2.41）</text>
+            <text x="448" y="99" class="d-txt d-tiny d-muted">÷ T（2.41）</text>
+            <text x="733" y="99" class="d-txt d-tiny d-muted">÷ T（2.41）</text>
+
+            <rect x="20" y="106" width="270" height="40" rx="6" class="d-box"/>
+            <rect x="305" y="106" width="270" height="40" rx="6" class="d-box"/>
+            <rect x="590" y="106" width="270" height="40" rx="6" class="d-box"/>
+            <text x="155" y="131" text-anchor="middle" class="d-mono">[0, 2.59]</text>
+            <text x="440" y="131" text-anchor="middle" class="d-mono">[0.63, 0.11, 0]</text>
+            <text x="725" y="131" text-anchor="middle" class="d-mono">[−5.81, 0.24, 0]</text>
+
+            <line x1="155" y1="148" x2="155" y2="166" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="440" y1="148" x2="440" y2="166" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="725" y1="148" x2="725" y2="166" class="d-arrow" marker-end="url(#ah8)"/>
+            <text x="163" y="161" class="d-txt d-tiny d-muted">softmax</text>
+            <text x="448" y="161" class="d-txt d-tiny d-muted">softmax</text>
+            <text x="733" y="161" class="d-txt d-tiny d-muted">softmax</text>
+
+            <rect x="20" y="168" width="270" height="100" rx="6" class="d-box"/>
+            <rect x="305" y="168" width="270" height="100" rx="6" class="d-box"/>
+            <rect x="590" y="168" width="270" height="100" rx="6" class="d-box"/>
+            <line x1="112" y1="178" x2="112" y2="258" class="d-axis"/>
+            <line x1="397" y1="178" x2="397" y2="258" class="d-axis"/>
+            <line x1="682" y1="178" x2="682" y2="258" class="d-axis"/>
+            <!-- noul -->
+            <text x="30" y="200" class="d-txt d-sm">no</text><rect x="112" y="189" width="9.8" height="14" class="d-bar"/><text x="282" y="200" text-anchor="end" class="d-mono d-tiny">0.07</text>
+            <text x="30" y="226" class="d-txt d-sm d-bold">yes</text><rect x="112" y="215" width="130.2" height="14" class="d-bar-top"/><text x="282" y="226" text-anchor="end" class="d-mono d-tiny">0.93</text>
+            <!-- choice -->
+            <text x="315" y="200" class="d-txt d-sm d-bold">returns</text><rect x="397" y="189" width="65.8" height="14" class="d-bar-top"/><text x="567" y="200" text-anchor="end" class="d-mono d-tiny">0.47</text>
+            <text x="315" y="226" class="d-txt d-sm">shipping</text><rect x="397" y="215" width="39.2" height="14" class="d-bar"/><text x="567" y="226" text-anchor="end" class="d-mono d-tiny">0.28</text>
+            <text x="315" y="252" class="d-txt d-sm">billing</text><rect x="397" y="241" width="35" height="14" class="d-bar"/><text x="567" y="252" text-anchor="end" class="d-mono d-tiny">0.25</text>
+            <!-- score -->
+            <text x="600" y="200" class="d-txt d-sm">0 平静</text><rect x="682" y="189" width="1.5" height="14" class="d-bar"/><text x="852" y="200" text-anchor="end" class="d-mono d-tiny">0.00</text>
+            <text x="600" y="226" class="d-txt d-sm d-bold">1 有点生气</text><rect x="682" y="215" width="78.4" height="14" class="d-bar-top"/><text x="852" y="226" text-anchor="end" class="d-mono d-tiny">0.56</text>
+            <text x="600" y="252" class="d-txt d-sm">2 非常生气</text><rect x="682" y="241" width="61.6" height="14" class="d-bar"/><text x="852" y="252" text-anchor="end" class="d-mono d-tiny">0.44</text>
+
+            <line x1="155" y1="270" x2="155" y2="288" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="440" y1="270" x2="440" y2="288" class="d-arrow" marker-end="url(#ah8)"/>
+            <line x1="725" y1="270" x2="725" y2="288" class="d-arrow" marker-end="url(#ah8)"/>
+            <text x="163" y="283" class="d-txt d-tiny d-muted">取 p(yes)</text>
+            <text x="448" y="283" class="d-txt d-tiny d-muted">argmax + 把握</text>
+            <text x="733" y="283" class="d-txt d-tiny d-muted">期望等级 + 把握</text>
+
+            <rect x="20" y="290" width="270" height="76" rx="6" class="d-op"/>
+            <rect x="305" y="290" width="270" height="76" rx="6" class="d-op"/>
+            <rect x="590" y="290" width="270" height="76" rx="6" class="d-op"/>
+            <text x="34" y="316" class="d-mono">"noul": 0.93</text>
+            <text x="34" y="338" class="d-txt d-tiny d-muted">没有 confidence 字段</text>
+            <text x="319" y="314" class="d-mono">"choice": "returns",</text>
+            <text x="319" y="334" class="d-mono">"confidence": 0.21,</text>
+            <text x="319" y="354" class="d-mono">"probabilities": {…}</text>
+            <text x="604" y="314" class="d-mono">"score": 1.44,</text>
+            <text x="604" y="334" class="d-mono">"confidence": 0.34,</text>
+            <text x="604" y="354" class="d-mono">"probabilities": {…}</text>
+          </svg>
+        </div>
+        <figcaption>三种题走的是同一条路：分数 → 除以温度 → softmax → 按题型整理。分数是按 README 返回反推的示意值，概率和最终 JSON 是 README 里 Kev-4B 的真实结果。打分题的 1.44 = 1 × 0.56 + 2 × 0.44；两个把握的算法见第 6 步。</figcaption>
+      </figure>
       <ol class="steps-list">
-        <li><p><b>读出。</b>取每道题 <code>&lt;decide&gt;</code> 和各个 <code>&lt;/opt&gt;</code> 位置的 hidden state，经 pointer head 得到 K 个 logits。</p></li>
-        <li><p><b>校准。</b>除以 <code>head.pt</code> 里存的温度，再 softmax。设 <code>KEV_TEMPERATURE=1.0</code> 可以拿回原始概率。</p></li>
-        <li><p><b>按题型整理（<code>to_answers</code>）。</b>noul 返回 p(yes)；choice 返回最高的选项、每个选项的概率和把握；score 返回期望等级、legend、每级概率和把握。</p></li>
+        <li><p><b>读出。</b>取每道题 <code>&lt;decide&gt;</code> 和各个 <code>&lt;/opt&gt;</code> 位置的 hidden state，经 pointer head 得到 K 个分数（上图第一行）。</p></li>
+        <li><p><b>校准。</b>除以 <code>head.pt</code> 里存的温度（Kev-4B 是 2.41），再 softmax（上图第二、三行）。设 <code>KEV_TEMPERATURE=1.0</code> 可以拿回原始概率。</p></li>
+        <li><p><b>按题型整理（<code>to_answers</code>）。</b>noul 取 p(yes)；choice 取最高的选项，加上每个选项的概率和把握；score 取期望等级，加上 legend、每级概率和把握（上图最后一行）。</p></li>
         <li><p><b>四舍五入。</b>所有数值保留 4 位小数，保证 255 个选项的概率加起来仍在 TypeSafe 要求的误差内。</p></li>
-        <li><p><b>包装成 TypeSafe 的格式。</b>回显 <code>model</code>（<code>kev-latest</code> 和 <code>jev-latest</code> 都认）；<code>usage.input_tokens</code>；<code>usage.output_tokens</code> 是序列化答案的 token 数，不是生成数；<code>latency_ms</code> 是模型耗时；响应头带 <code>x-typesafe-request-id</code>。</p>
-          <div class="mini-ex">{"answers": {"department": {"type": "choice", "choice": "returns", "confidence": 0.21,
-  "probabilities": {"returns": 0.47, "shipping": 0.28, "billing": 0.25}}, …},
+        <li><p><b>包装成 TypeSafe 的格式。</b>回显 <code>model</code>（<code>kev-latest</code> 和 <code>jev-latest</code> 都认）；加上 <code>usage.input_tokens</code> 和 <code>usage.output_tokens</code>（后者是序列化答案的 token 数，不是生成数）、<code>latency_ms</code>（模型耗时）；响应头带 <code>x-typesafe-request-id</code>。</p>
+          <div class="mini-ex">{"model": "kev-latest",
+ "answers": {"department": {…}, "escalate": {…}, "frustration": {…}},
  "usage": {"input_tokens": 101, "output_tokens": 161}, "latency_ms": 495}</div></li>
       </ol>
       <div class="box">
@@ -1248,6 +1616,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
         <p>不需要用正则从回答里抠答案，不需要修 JSON，也不需要在格式出错时重试。模型根本不生成文字，所以不可能答非所问，也不会格式错乱。</p>
       </div>
 
+      <!-- ---------------------------------------------------- 总表 -->
       <h3>一张表总结</h3>
       <div class="tbl">
         <table>
@@ -1255,13 +1624,14 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
           <tbody>
             <tr><td>网络层、tokenizer</td><td colspan="2">不变</td></tr>
             <tr><td>输出层</td><td>LM head，词表大小</td><td>去掉，换成 pointer head：2 × (d → 256)</td></tr>
-            <tr><td>输入</td><td>自然语言 + chat template</td><td>结构化 JSON → 展开成文本 → 用 5 个 special token 分段，不用 chat template</td></tr>
+            <tr><td>可训练参数</td><td>—</td><td>LoRA + pointer head（27B：全部）</td></tr>
+            <tr><td>输入</td><td>自然语言 + chat template</td><td>结构化 JSON → 7 步改写 → 用 5 个 special token 分段，不用 chat template</td></tr>
             <tr><td>注意力</td><td>因果掩码</td><td>因果掩码 + 题与题之间的挡板，或每道题单独一行</td></tr>
             <tr><td>位置编号</td><td>0, 1, 2, …</td><td>每道题从 state 后面重新编号</td></tr>
-            <tr><td>训练目标</td><td>下一个 token 的交叉熵</td><td>只在选项上算交叉熵，没有语言模型损失</td></tr>
+            <tr><td>训练目标</td><td>每个位置：下一个 token 的交叉熵</td><td>每道题：只在选项上算交叉熵，没有语言模型损失</td></tr>
             <tr><td>训练后</td><td>—</td><td>拟合一个温度 T</td></tr>
             <tr><td>推理</td><td>prefill + 逐字 decode</td><td>只做 prefill，缓存 state</td></tr>
-            <tr><td>输出</td><td>文本</td><td>概率，按题型整理成 TypeSafe 格式的 JSON</td></tr>
+            <tr><td>输出</td><td>文本，需要解析</td><td>概率，按题型整理成固定格式的 JSON</td></tr>
           </tbody>
         </table>
       </div>
