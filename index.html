@@ -349,9 +349,10 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
     <ol>
       <li><a href="#top"><span class="n">··</span>一图看懂</a></li>
       <li><a href="#words"><span class="n">··</span>先认识几个词</a></li>
+      <li><a href="#basics"><span class="n">··</span>先复习：大模型怎么说话</a></li>
       <li><a href="#why"><span class="n">··</span>为什么不直接问</a></li>
       <li><a href="#s1"><span class="n">1</span>摆成一行</a></li>
-      <li><a href="#s2"><span class="n">2</span>座位号和挡板</a></li>
+      <li><a href="#s2"><span class="n">2</span>挡板和座位号</a></li>
       <li><a href="#s3"><span class="n">3</span>读一遍，不说话</a></li>
       <li><a href="#s4"><span class="n">4</span>比一比，打分</a></li>
       <li><a href="#s5"><span class="n">5</span>分数变百分比</a></li>
@@ -398,6 +399,7 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
         <li><a href="#s6"><span class="n">第 6 步</span><span class="t">给出答案</span><span class="d">按题型整理成最终结果。</span><span class="e">退换货，把握 0.21</span></a></li>
       </ol>
       <p class="small muted">第 4 步的分数是按 README 的返回反推出来的示意值。训练只改变第 3、4 步里的参数；"温度"在训练结束后单独定好，只用在第 5 步。</p>
+      <p class="small">对大模型只有大概印象？建议先看 <a href="#words">先认识几个词</a> 和 <a href="#basics">先复习：普通大模型是怎么"说话"的</a>，各一分钟。</p>
     </header>
 
     <!-- ============================================================ WORDS -->
@@ -405,21 +407,100 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
       <div class="sec-head"><h2>先认识几个词</h2></div>
       <div class="tbl">
         <table>
-          <thead><tr><th>词</th><th>大白话</th><th>在例子里</th></tr></thead>
+          <thead><tr><th>词</th><th>大白话</th><th>在本页哪里</th></tr></thead>
           <tbody>
-            <tr><td>state（材料）</td><td>要读的那段文字</td><td>那张工单</td></tr>
-            <tr><td>question（题）</td><td>要回答的问题，分是非题、选择题、打分题三种</td><td>"该交给哪个部门？"</td></tr>
-            <tr><td>option（选项）</td><td>可以选的答案</td><td>退换货、物流、账单</td></tr>
             <tr><td>token</td><td>模型读字的最小单位，大约是一个词或半个词</td><td>"鞋子""晚到"</td></tr>
-            <tr><td>special token</td><td>词表里的特殊 token，不是普通文字。Kev 用 5 个来标出材料、题目、选项的边界</td><td><code>&lt;state&gt;</code> <code>&lt;q&gt;</code> <code>&lt;opt&gt;</code> <code>&lt;/opt&gt;</code> <code>&lt;decide&gt;</code></td></tr>
-            <tr><td>hidden state（笔记）</td><td>模型每读一个 token，都会在这个位置留下一份"读到这里为止的理解"，本页叫它笔记。它其实是几千个数字，人看不懂</td><td>读到"账单"这个选项末尾时的笔记</td></tr>
+            <tr><td>注意力（attention）</td><td>模型处理每个 token 时会回头看前面的 token，决定从每个那里取多少信息</td><td>"先复习"、第 2 步</td></tr>
+            <tr><td>hidden state（笔记）</td><td>模型读到某个位置时，留下的一份"读到这里为止的理解"。其实是几千个数字，人看不懂</td><td>"先复习"、第 3 步</td></tr>
+            <tr><td>LM head（嘴）</td><td>普通大模型的最后一层：把笔记变成"下一个 token 是谁"的概率</td><td>Kev 把它拆掉了</td></tr>
+            <tr><td>prefill / decode</td><td>prefill：把已有的字一次读完；decode：之后每多说一个字，就再算一遍</td><td>Kev 只做 prefill</td></tr>
+            <tr><td>state（材料）</td><td>要读的那段文字</td><td>那张工单</td></tr>
+            <tr><td>question（题）/ option（选项）</td><td>要回答的问题，和可以选的答案。题分是非题、选择题、打分题三种</td><td>"该交给哪个部门？"；退换货、物流、账单</td></tr>
+            <tr><td>special token</td><td>词表里的特殊 token，不是普通文字。Kev 用 5 个来标出材料、题目、选项的边界</td><td><code>&lt;state&gt;</code> <code>&lt;q&gt;</code> <code>&lt;opt&gt;</code> <code>&lt;/opt&gt;</code> <code>&lt;decide&gt;</code>，第 1 步</td></tr>
+            <tr><td>挡板（attention mask）</td><td>规定每个 token 可以回头看谁、不可以看谁</td><td>第 2 步</td></tr>
+            <tr><td>座位号（position id）</td><td>每个 token 的位置编号，模型靠它知道谁在前、谁在后</td><td>第 2 步</td></tr>
+            <tr><td>pointer head（指针头）</td><td>Kev 新加的小部件，代替"嘴"，给每个选项打分</td><td>第 4 步</td></tr>
             <tr><td>logit（分数）</td><td>对一个选项的喜欢程度，可以是负数，越大越喜欢</td><td>1.52、0.27、0</td></tr>
-            <tr><td>softmax</td><td>把几个分数换成加起来等于 100% 的百分比</td><td>47%、28%、25%</td></tr>
+            <tr><td>softmax</td><td>把几个分数换成加起来等于 100% 的百分比</td><td>47%、28%、25%，第 5 步</td></tr>
             <tr><td>温度 T</td><td>调"有多自信"的旋钮。T 越大，百分比越平均</td><td>Kev-4B 出厂时是 2.41</td></tr>
-            <tr><td>校准</td><td>说"70% 把握"的那些题，真的有 70% 答对了</td><td>第"温度怎么定"一节</td></tr>
+            <tr><td>loss（扣分）/ 交叉熵</td><td>训练时衡量"答得有多差"的分数，越小越好；交叉熵是 Kev 用的那种扣分规则</td><td>"它是怎么学会的"</td></tr>
+            <tr><td>校准</td><td>说"70% 把握"的那些题，真的有 70% 答对了</td><td>"温度怎么定"</td></tr>
             <tr><td>LoRA</td><td>不改原来的大模型，只在旁边贴一小块可以训练的"便利贴"，教它新习惯</td><td>Kev-0.8B / 4B / 9B 用的就是它</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ BASICS -->
+    <section id="basics">
+      <div class="sec-head">
+        <span class="step-tag">先复习</span>
+        <h2>普通大模型是怎么"说话"的</h2>
+      </div>
+      <p>Kev 改造的是 Qwen 这样的大模型。先花一分钟看原来的大模型怎么工作，后面每一步改了哪里就好懂了。以"鞋子晚到了"后面该接什么为例：</p>
+      <ol class="plain">
+        <li><b>切成 token。</b>文字先被切成一个个小块，比如"鞋子""晚到""了"。</li>
+        <li><b>读。</b>模型一层一层地处理这些 token。处理每个 token 时，它都会<b>回头看</b>前面的 token，决定从每个那里取多少信息，这叫<b>注意力</b>。读完后，每个位置都留下一份"读到这里为止的理解"，本页叫它<b>笔记</b>（hidden state），其实是几千个数字。</li>
+        <li><b>说。</b>拿<b>最后一个位置</b>的笔记，交给最后一层"嘴"（LM head）。嘴给词表里每个 token 打一个分，换成概率，比如"两周"41%、"一周"12%，然后挑一个说出来。</li>
+        <li><b>循环。</b>把挑出来的"两周"接到后面，再把模型跑一遍，猜下一个，一直到说完为止。第一次把已有的字读完叫 <b>prefill</b>，之后每多说一个字算一次叫 <b>decode</b>。</li>
+      </ol>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 342" role="img" aria-label="普通大模型说话的过程：三个 token 经过 Transformer 层，每个位置得到一份笔记；最后一份笔记交给 LM head，得到词表里每个 token 的概率，挑出两周，接到后面再跑一遍。左半边是 Kev 保留的读，右半边是 Kev 拆掉的说和循环。">
+            <defs>
+              <marker id="ah9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="ah9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-acc"/></marker>
+            </defs>
+            <rect x="22" y="30" width="290" height="224" rx="10" class="d-dash"/>
+            <text x="30" y="22" class="d-txt d-sm d-bold">Kev 保留：读（Transformer 和笔记）</text>
+            <rect x="322" y="30" width="546" height="224" rx="10" class="d-dash"/>
+            <text x="860" y="22" text-anchor="end" class="d-txt d-sm d-bold d-acc">Kev 拆掉：说 + 循环</text>
+
+            <text x="36" y="78" class="d-txt d-sm d-muted">每个位置一份笔记</text>
+            <rect x="45" y="88" width="70" height="30" rx="5" class="d-box"/><text x="80" y="108" text-anchor="middle" class="d-txt d-sm">笔记</text>
+            <rect x="135" y="88" width="70" height="30" rx="5" class="d-box"/><text x="170" y="108" text-anchor="middle" class="d-txt d-sm">笔记</text>
+            <rect x="225" y="88" width="70" height="30" rx="5" class="d-read"/><text x="260" y="108" text-anchor="middle" class="d-txt d-sm">笔记</text>
+            <line x1="80" y1="140" x2="80" y2="121" class="d-arrow" marker-end="url(#ah9)"/>
+            <line x1="170" y1="140" x2="170" y2="121" class="d-arrow" marker-end="url(#ah9)"/>
+            <line x1="260" y1="140" x2="260" y2="121" class="d-arrow" marker-end="url(#ah9)"/>
+            <rect x="36" y="142" width="268" height="62" rx="8" class="d-box"/>
+            <text x="170" y="168" text-anchor="middle" class="d-txt d-sm d-bold">Transformer 层（读）</text>
+            <text x="170" y="189" text-anchor="middle" class="d-txt d-sm d-muted">一层层处理，每层都会回头看</text>
+            <line x1="80" y1="260" x2="80" y2="207" class="d-arrow" marker-end="url(#ah9)"/>
+            <line x1="170" y1="260" x2="170" y2="207" class="d-arrow" marker-end="url(#ah9)"/>
+            <line x1="260" y1="260" x2="260" y2="207" class="d-arrow" marker-end="url(#ah9)"/>
+            <rect x="40" y="262" width="80" height="30" rx="5" class="d-box"/><text x="80" y="282" text-anchor="middle" class="d-txt d-sm">鞋子</text>
+            <rect x="130" y="262" width="80" height="30" rx="5" class="d-box"/><text x="170" y="282" text-anchor="middle" class="d-txt d-sm">晚到</text>
+            <rect x="220" y="262" width="80" height="30" rx="5" class="d-box"/><text x="260" y="282" text-anchor="middle" class="d-txt d-sm">了</text>
+            <rect x="310" y="262" width="80" height="30" rx="5" class="d-gone"/><text x="350" y="282" text-anchor="middle" class="d-txt d-sm d-muted">下一个？</text>
+            <path d="M260,292 C260,316 170,316 170,296" class="d-arrow-acc" marker-end="url(#ah9a)"/>
+            <path d="M260,292 C260,330 80,330 80,296" class="d-arrow-acc" marker-end="url(#ah9a)"/>
+            <text x="276" y="326" class="d-txt d-sm d-acc">"了"回头看前面的字（注意力）</text>
+
+            <line x1="297" y1="103" x2="326" y2="103" class="d-arrow" marker-end="url(#ah9)"/>
+            <text x="340" y="80" class="d-txt d-sm d-muted">只用最后一份笔记</text>
+            <rect x="330" y="88" width="122" height="32" rx="6" class="d-box"/>
+            <text x="391" y="109" text-anchor="middle" class="d-txt d-sm">嘴（LM head）</text>
+            <line x1="454" y1="103" x2="478" y2="103" class="d-arrow" marker-end="url(#ah9)"/>
+            <rect x="482" y="42" width="372" height="130" rx="8" class="d-box"/>
+            <text x="496" y="64" class="d-txt d-sm">词表里每个 token 的概率（示意）</text>
+            <line x1="550" y1="74" x2="550" y2="146" class="d-axis"/>
+            <text x="496" y="90" class="d-txt d-sm d-bold">两周</text><rect x="550" y="79" width="110" height="14" rx="3" class="d-bar-top"/><text x="844" y="90" text-anchor="end" class="d-mono d-tiny">41%</text>
+            <text x="496" y="114" class="d-txt d-sm">一周</text><rect x="550" y="103" width="32" height="14" rx="3" class="d-bar"/><text x="844" y="114" text-anchor="end" class="d-mono d-tiny">12%</text>
+            <text x="496" y="138" class="d-txt d-sm">三天</text><rect x="550" y="127" width="21.5" height="14" rx="3" class="d-bar"/><text x="844" y="138" text-anchor="end" class="d-mono d-tiny">8%</text>
+            <text x="496" y="162" class="d-txt d-tiny d-muted">……词表里其余所有 token 分掉剩下的 39%</text>
+            <line x1="668" y1="174" x2="668" y2="194" class="d-arrow" marker-end="url(#ah9)"/>
+            <rect x="598" y="198" width="140" height="32" rx="6" class="d-op"/>
+            <text x="668" y="219" text-anchor="middle" class="d-txt d-sm">挑出"两周"</text>
+            <path d="M668,232 V246 H350 V258" class="d-arrow" marker-end="url(#ah9)"/>
+            <text x="512" y="241" text-anchor="middle" class="d-txt d-sm d-muted">接到后面，再跑一遍（decode）</text>
+          </svg>
+        </div>
+        <figcaption>左边虚线框是"读"，右边虚线框是"说"和"循环"。概率数字是编的示意值。Kev 保留左边，拆掉右边整块，换成自己的读法。</figcaption>
+      </figure>
+      <div class="box key">
+        <span class="lab key">Kev 改了哪里（先剧透）</span>
+        <p>Kev 保留"读"这一步，也就是 Transformer 和笔记；拆掉"说"和"循环"。它不让嘴去挑下一个字，而是在每个选项的结尾各取一份笔记，用自己的小部件（pointer head）给选项打分。只读一遍，就得到每个选项的概率。下面的六步讲的就是这件事。</p>
       </div>
     </section>
 
@@ -476,45 +557,10 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
             <line x1="729" y1="264" x2="729" y2="238" class="d-arrow-acc" marker-end="url(#ah0a)"/>
           </svg>
         </div>
-        <figcaption>紫框是"取笔记"的位置。办法 ② 只在最后一个位置取一次笔记，用它猜下一个字是哪个字母；Kev 在每个选项结尾的 <code>&lt;/opt&gt;</code> 各取一次，再在整道题结尾的 <code>&lt;decide&gt;</code> 取一次。所以选项可以有 1 到 255 个，也不需要 A、B、C 编号。图里省略了每个选项前面的 <code>&lt;opt&gt;</code>。</figcaption>
+        <figcaption>紫框是"取笔记"的位置。办法 ② 只在最后一个位置取一次笔记，用它猜下一个字是哪个字母；Kev 在每个选项结尾的 <code>&lt;/opt&gt;</code> 各取一次，再在整道题结尾的 <code>&lt;decide&gt;</code> 取一次。所以选项可以有 1 到 255 个，也不需要 A、B、C 编号。尖括号里的 <code>&lt;state&gt;</code>、<code>&lt;/opt&gt;</code> 这些是 Kev 用的 special token，第 1 步会解释；图里省略了每个选项前面的 <code>&lt;opt&gt;</code>。</figcaption>
       </figure>
 
-      <div class="box key" id="what-notes">
-        <span class="lab key">"读完每个选项那一刻的笔记"是什么意思</span>
-        <p>模型是一个 token 一个 token 往后读的。每读到一个 token，它都会在这个位置留下一份"<b>读到这里为止，我理解了什么</b>"。本页把它叫作<b>笔记</b>，术语叫 hidden state，其实是几千个数字。</p>
-        <p>普通聊天模型也会给每个位置都留笔记，但它只用最后一份，拿去猜下一个字。Kev 不猜下一个字，而是挑出几个特定位置的笔记来用。</p>
-        <p>为什么偏偏挑选项的<b>结尾</b>？拿"客户有多生气？"这道题看看，不同位置的笔记各知道多少（按词示意切分）：</p>
-        <div class="toks pinned" aria-label="客户有多生气这道题的 token，标出四个位置">
-          <span class="tok sp"><span class="tok-t">&lt;q&gt;</span></span>
-          <span class="tok"><span class="tok-t">客户</span></span>
-          <span class="tok"><span class="tok-t">有多</span></span>
-          <span class="tok"><span class="tok-t">生气？</span></span>
-          <span class="tok sp"><span class="tok-t">&lt;opt&gt;</span></span>
-          <span class="tok"><span class="tok-t">平静</span></span>
-          <span class="tok sp hit"><span class="tok-t">&lt;/opt&gt;</span></span>
-          <span class="tok sp"><span class="tok-t">&lt;opt&gt;</span></span>
-          <span class="tok"><span class="tok-t">有点</span></span>
-          <span class="tok"><span class="tok-t">生气</span></span>
-          <span class="tok sp hit"><span class="tok-t">&lt;/opt&gt;</span></span>
-          <span class="tok sp dim"><span class="pin">①</span><span class="tok-t">&lt;opt&gt;</span></span>
-          <span class="tok half"><span class="pin">②</span><span class="tok-t">非常</span></span>
-          <span class="tok"><span class="tok-t">生气</span></span>
-          <span class="tok sp hit"><span class="pin">③</span><span class="tok-t">&lt;/opt&gt;</span></span>
-          <span class="tok sp hit"><span class="pin">④</span><span class="tok-t">&lt;decide&gt;</span></span>
-        </div>
-        <ol class="notes">
-          <li class="dim"><span class="num">①</span><span><code>&lt;opt&gt;</code>：第 3 个选项刚开始，内容一个字都还没读到。这份笔记说不出这个选项是什么。</span></li>
-          <li class="dim"><span class="num">②</span><span>"非常"：选项只读了一半。是"非常生气"还是"非常满意"？还不知道。</span></li>
-          <li><span class="num">③</span><span><code>&lt;/opt&gt;</code>：整个"非常生气"读完了，前面的工单和问题也都读过。这份笔记就能代表"放在这张工单里，'非常生气'这个选项怎么样"。<b>Kev 取的就是这一份。</b></span></li>
-          <li><span class="num">④</span><span><code>&lt;decide&gt;</code>：三个选项全读完了，接下来就该给出答案了。它的位置相当于办法 ② 里的"答案："，也就是普通模型正准备说出答案的那一刻。这份笔记代表"我心里要选的答案长什么样"。</span></li>
-        </ol>
-        <div class="box">
-          <span class="lab an">打个比方</span>
-          <p>你做一道选择题。读完选项"非常生气"，心里有个印象："这个选项说的是客户气得不行"，这就是 ③。读完所有选项、提笔准备圈答案的那一刻，心里已经有了"答案应该是有点生气那种"，这就是 ④。然后你拿心里的答案去和每个选项的印象对一对，圈最像的那个。Kev 省掉了"写下字母"这一步，直接量"有多像"。</p>
-        </div>
-        <p><b>为什么这两个位置能扮演这两种角色？</b>位置本身没有魔法。笔记里装什么，取决于两点：读到这里时读过了哪些内容，以及训练。训练时，Kev 拿 ④ 和每个选项的 ③ 比，正确选项分数不够高就扣分（见"它是怎么学会的"一节）。练多了，模型就学会：在 <code>&lt;/opt&gt;</code> 处把"这个选项是什么"写进笔记，在 <code>&lt;decide&gt;</code> 处把"我要选的答案"写进笔记，好让两者对得上。</p>
-        <p>每个选项结尾都有一个 <code>&lt;/opt&gt;</code>（上图三个紫框），所以每个选项都有自己的一份笔记。Kev 拿 ④ 分别和每个选项的那份笔记比，越像分数越高。这就是后面第 4 步的"比一比"。</p>
-      </div>
+      <p>Kev 具体在哪几个位置取笔记、为什么偏偏是这几个位置，第 3 步会用例子细讲。</p>
       <div class="box ex">
         <span class="lab ex">例子：字母不够用</span>
         <p>banking77 是一个银行客服意图数据集，一道题有 77 个选项，字母只有 26 个，办法 ② 根本没法用。Kev 的原型 Kev-0.5B 在这类题上照常工作。下表是同样大小的 Qwen 小模型直接读字母（不训练），对比训练后的 Kev-0.5B（准确率 / 校准误差，校准误差越小越好）：</p>
@@ -587,7 +633,7 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
     <section id="s2">
       <div class="sec-head">
         <span class="step-tag">第 2 步</span>
-        <h2>座位号和挡板</h2>
+        <h2>挡板和座位号</h2>
       </div>
       <h3>挡板：每道题只看材料和自己</h3>
       <p>一行里放了好几道题。如果不加限制，模型读第 2 题的时候能看到第 1 题的全部内容，两道题就会互相影响。Kev 给每道题加了一块"挡板"：每道题只能看见材料和它自己，看不见别的题。</p>
@@ -603,30 +649,31 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
         <p>暗号只写在题 A 里。有挡板的话，题 B 看不到它。测试结果：题 B 选中正确暗号的概率是 <b>0.03</b>，跟暗号哪里都没写时一样（0.03）。把暗号写进材料，概率就变成 <b>0.99</b>。挡板确实挡住了。</p>
       </div>
 
-      <div class="box key">
-        <span class="lab key">严格地说：挡板就是 attention mask</span>
-        <p>Transformer 的每一层里，每个 token 都会去"看"别的 token：先给每个看得到的 token 打一个注意力分（q·k），用 softmax 换成权重，再按权重把它们的信息加起来，更新自己的笔记。</p>
-        <p>挡板做的事很简单：在 softmax 之前，把不许看的位置的分数改成负无穷（代码里用这个数据类型能表示的最小负数）。这样算出来的权重正好是 0，那个位置的信息一点也传不过来。</p>
-        <div class="tbl">
-          <table>
-            <thead><tr><th>题 2 里的"是"去看</th><th class="num">注意力分（假设）</th><th class="num">没有挡板：权重</th><th class="num">有挡板：权重</th></tr></thead>
-            <tbody>
-              <tr><td>&lt;state&gt;（材料）</td><td class="num">1.0</td><td class="num">19%</td><td class="num">41%</td></tr>
-              <tr><td>鞋子（材料）</td><td class="num">0.5</td><td class="num">12%</td><td class="num">25%</td></tr>
-              <tr><td>退换货（题 1）</td><td class="num">2.0 → −∞</td><td class="num">53%</td><td class="num best">0%</td></tr>
-              <tr><td>紧急?（题 2）</td><td class="num">0.8</td><td class="num">16%</td><td class="num">34%</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="small muted">没有挡板时，"是"有一半以上的注意力落在题 1 的"退换货"上；加了挡板，这一项变成 0，权重重新分给材料和题 2 自己。</p>
-        <p>为什么这样就能保证题 2 完全不受题 1 影响：</p>
-        <ul class="plain">
-          <li>每一层用的都是同一张挡板，所以题 2 的 token 在每一层都只从材料和题 2 自己取信息。</li>
-          <li>材料排在最前面，本来就看不到后面的任何题，所以材料的笔记里也不会混进题 1 的信息。</li>
-          <li>两条合起来，一层一层往上推：题 2 在任何一层的笔记里，题 1 的贡献都严格是 0。再加上下面讲的座位号重编，题 2 的计算和"只放材料加题 2，单独跑一遍"完全相同。实测两种跑法的概率在 fp32 下最多差约 0.000004，只是浮点误差。</li>
-        </ul>
-        <p>新版 Qwen 里的 DeltaNet 层不用注意力，没有地方放这个负无穷，所以在那种模型上 Kev 改成每道题单独一行，见本节最后。</p>
+      <h3>在模型里，挡板是怎么做到的</h3>
+      <p>"先复习"里说过：模型处理每个 token 时，会回头看前面的 token，决定从每个那里取多少信息。这些"取多少"加起来正好是 100%，叫<b>注意力权重</b>。挡板（attention mask）做的事很简单：在算权重之前，把不许看的 token 排除掉，让它的权重变成 0。技术上，是把它的注意力分改成负无穷，softmax 之后就正好是 0。</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>题 2 里的"是"去看</th><th class="num">注意力分（假设）</th><th class="num">没有挡板：权重</th><th class="num">有挡板：权重</th></tr></thead>
+          <tbody>
+            <tr><td>&lt;state&gt;（材料）</td><td class="num">1.0</td><td class="num">19%</td><td class="num">41%</td></tr>
+            <tr><td>鞋子（材料）</td><td class="num">0.5</td><td class="num">12%</td><td class="num">25%</td></tr>
+            <tr><td>退换货（题 1）</td><td class="num">2.0 → −∞</td><td class="num">53%</td><td class="num best">0%</td></tr>
+            <tr><td>紧急?（题 2）</td><td class="num">0.8</td><td class="num">16%</td><td class="num">34%</td></tr>
+          </tbody>
+        </table>
       </div>
+      <p class="small muted">没有挡板时，"是"有一半以上的注意力落在题 1 的"退换货"上，题 1 的内容就会影响题 2 的答案。加了挡板，这一项变成 0，权重重新分给材料和题 2 自己。</p>
+      <details class="dev">
+        <summary>进阶：为什么这样就能保证完全隔开</summary>
+        <div class="dev-body">
+          <ul class="plain">
+            <li>每一层用的都是同一张挡板，所以题 2 的 token 在每一层都只从材料和题 2 自己取信息。</li>
+            <li>材料排在最前面，本来就看不到后面的任何题，所以材料的笔记里也不会混进题 1 的信息。</li>
+            <li>两条合起来，一层一层往上推：题 2 在任何一层的笔记里，题 1 的贡献都严格是 0。再加上下面讲的座位号重编，题 2 的计算和"只放材料加题 2，单独跑一遍"完全相同。实测两种跑法的概率在 fp32 下最多差约 0.000004，只是浮点误差。</li>
+          </ul>
+          <p>新版 Qwen 里的 DeltaNet 层不用注意力，没有地方放这个负无穷，所以在那种模型上 Kev 改成每道题单独一行，见本节最后。</p>
+        </div>
+      </details>
 
       <h3>座位号：每道题都"坐在材料后面"</h3>
       <p>模型还会看每个字的"座位号"（位置编号），用来知道谁在前、谁在后。Kev 让每道题的座位号都从材料结束的地方重新开始数。这样对模型来说，每道题都像是紧挨着材料坐的，排第几道都一样。</p>
@@ -724,21 +771,40 @@ allow = causal[None] &amp; same &amp; valid_key                           <span 
         <span class="lab an">打个比方</span>
         <p>普通模型像一个边听边接话的人。Kev 像一个阅卷老师：安静地把卷子看完，只在几个关键位置做标记。</p>
       </div>
-      <p>它只翻两种位置的笔记：</p>
-      <div class="cards two">
-        <div class="card">
-          <h3>每个选项的结尾 &lt;/opt&gt;</h3>
-          <p>模型从左往右读。读到"账单"后面的 &lt;/opt&gt; 时，它已经读完了材料、题目和"账单"这个选项。这时的笔记就是它对"账单"的印象。</p>
-        </div>
-        <div class="card">
-          <h3>每道题的最后 &lt;decide&gt;</h3>
-          <p>&lt;decide&gt; 排在整道题的最后，读到这里时所有选项都读过了。这时的笔记相当于"读完所有选项后，我要找的答案长什么样"。</p>
+      <h3>只翻两种位置的笔记</h3>
+      <p>"先复习"里说过：模型读完后，每个位置都有一份笔记，普通模型只用最后一份。Kev 只取两种位置的笔记：每个选项结尾的 <code>&lt;/opt&gt;</code>，和每道题最后的 <code>&lt;decide&gt;</code>。为什么偏偏是这两个位置？拿"客户有多生气？"这道题看看，不同位置的笔记各知道多少（按词示意切分）：</p>
+      <div class="fig-box">
+        <div class="toks pinned" aria-label="客户有多生气这道题的 token，标出四个位置">
+          <span class="tok sp"><span class="tok-t">&lt;q&gt;</span></span>
+          <span class="tok"><span class="tok-t">客户</span></span>
+          <span class="tok"><span class="tok-t">有多</span></span>
+          <span class="tok"><span class="tok-t">生气？</span></span>
+          <span class="tok sp"><span class="tok-t">&lt;opt&gt;</span></span>
+          <span class="tok"><span class="tok-t">平静</span></span>
+          <span class="tok sp hit"><span class="tok-t">&lt;/opt&gt;</span></span>
+          <span class="tok sp"><span class="tok-t">&lt;opt&gt;</span></span>
+          <span class="tok"><span class="tok-t">有点</span></span>
+          <span class="tok"><span class="tok-t">生气</span></span>
+          <span class="tok sp hit"><span class="tok-t">&lt;/opt&gt;</span></span>
+          <span class="tok sp dim"><span class="pin">①</span><span class="tok-t">&lt;opt&gt;</span></span>
+          <span class="tok half"><span class="pin">②</span><span class="tok-t">非常</span></span>
+          <span class="tok"><span class="tok-t">生气</span></span>
+          <span class="tok sp hit"><span class="pin">③</span><span class="tok-t">&lt;/opt&gt;</span></span>
+          <span class="tok sp hit"><span class="pin">④</span><span class="tok-t">&lt;decide&gt;</span></span>
         </div>
       </div>
-      <div class="box ex">
-        <span class="lab ex">例子</span>
-        <p>读到"账单"结尾时，笔记里大概记着："这个选项讲扣款、发票；前面的工单确实提到被扣了两次钱。"真实的笔记是几千个数字，人看不懂，这句话只是比喻。</p>
+      <ol class="notes">
+        <li class="dim"><span class="num">①</span><span><code>&lt;opt&gt;</code>：第 3 个选项刚开始，内容一个字都还没读到。这份笔记说不出这个选项是什么。</span></li>
+        <li class="dim"><span class="num">②</span><span>"非常"：选项只读了一半。是"非常生气"还是"非常满意"？还不知道。</span></li>
+        <li><span class="num">③</span><span><code>&lt;/opt&gt;</code>：整个"非常生气"读完了，前面的工单和问题也都读过。这份笔记就能代表"放在这张工单里，'非常生气'这个选项怎么样"。<b>Kev 取的就是这一份。</b></span></li>
+        <li><span class="num">④</span><span><code>&lt;decide&gt;</code>：三个选项全读完了，接下来就该给出答案了。它的位置相当于普通模型的"答案："，也就是正准备说出答案的那一刻。这份笔记代表"我心里要选的答案长什么样"。</span></li>
+      </ol>
+      <div class="box">
+        <span class="lab an">打个比方</span>
+        <p>你做一道选择题。读完选项"非常生气"，心里有个印象："这个选项说的是客户气得不行"，这就是 ③。读完所有选项、提笔准备圈答案的那一刻，心里已经有了"答案应该是有点生气那种"，这就是 ④。然后你拿心里的答案去和每个选项的印象对一对，圈最像的那个。Kev 省掉了"写下字母"这一步，直接量"有多像"。</p>
       </div>
+      <p>每个选项结尾都有一个 <code>&lt;/opt&gt;</code>（上图三个紫框），所以每个选项都有自己的一份笔记。下一步，Kev 拿 ④ 分别和每个选项的那份笔记比，越像分数越高。</p>
+      <p><b>为什么这两个位置能扮演这两种角色？</b>位置本身没有魔法。笔记里装什么，取决于两点：读到这里时读过了哪些内容，以及训练。训练时，Kev 拿 ④ 和每个选项的 ③ 比，正确选项的分数不够高就扣分。练多了，模型就学会：在 <code>&lt;/opt&gt;</code> 处把"这个选项是什么"写进笔记，在 <code>&lt;decide&gt;</code> 处把"我要选的答案"写进笔记，好让两者对得上。</p>
       <p>不生成字，所以很快：Kev-4B 在一块 H100 显卡上回答一段短文的 6 道题，只要 18 毫秒左右。</p>
       <p>模型本身怎么改？Kev-0.8B、4B、9B 不动原来的大脑，只贴 LoRA"便利贴"；Kev-27B 是把整个大脑都重新练了一遍。</p>
       <details class="dev">
@@ -772,6 +838,7 @@ allow = causal[None] &amp; same &amp; valid_key                           <span 
           <div class="vrow"><span class="nm">账单</span><span class="m">[0, 0, 1] → 1×0 + 0.6×0 + 0.5×1 = <b>0.50</b></span></div>
         </div>
         <p>退换货最像，分数最高。</p>
+        <p class="small muted">这些是为了讲解编的玩具数字。真实的 Kev-4B 对这张工单打出的分数大约是 1.52、0.27、0（按 README 的返回反推），第 5 步会用到。</p>
       </div>
       <p>这个部件叫 <b>pointer head</b>（指针头），因为它就像用手指着每个选项问"是你吗？"。有几个选项就指几次，2 个、3 个、255 个都是同一个办法，所以选项数不受限制。</p>
       <p>真实模型里，"要找的答案"和"每个选项是什么"，是由两个小"翻译器"（<code>W_q</code> 和 <code>W_k</code>）从笔记里算出来的，各 256 个数。训练教会模型的，正是怎么记笔记、怎么翻译，才能让正确选项分数最高。</p>
@@ -816,8 +883,9 @@ allow = causal[None] &amp; same &amp; valid_key                           <span 
         </div>
         <figcaption>完整的计算流程。"÷ 16"是固定的缩放（16 = √256），防止 256 个数相加后分数太大。下一步讲"÷ 温度"和"变成百分比"。</figcaption>
       </figure>
-      <div class="box key">
-        <span class="lab key">严格地说：这不是真正的"相似度"</span>
+      <details class="dev">
+        <summary>进阶：严格地说，这不是真正的"相似度"</summary>
+        <div class="dev-body">
         <p>"比像不像"是比喻。数学上，它是一个<b>训练出来的打分函数</b>（双线性形式）：</p>
         <div class="formula">zⱼ = (W_q h_d + b_q)ᵀ (W_k hⱼ + b_k) / 16 &nbsp;=&nbsp; h_dᵀ M hⱼ / 16 + (只和选项有关的项) + (所有选项都一样的项)<span class="c-com"># M = W_qᵀ W_k</span></div>
         <p>M 是学出来的矩阵，不对称，分数可以是负数。它不是余弦相似度，也不是距离。"所有选项都一样的项"在 softmax 里会抵消；"只和选项有关的项"相当于每个选项自带一个先验分。</p>
@@ -827,7 +895,8 @@ allow = causal[None] &amp; same &amp; valid_key                           <span 
           <li><b>"是概率"不是这个结构保证的，是训练目标保证的。</b>softmax 只保证输出非负、加起来为 1。交叉熵满足 E[−log q(y)] = H(p) + KL(p‖q)，当且仅当 q = p 时最小。所以在训练分布上，只要模型够强、数据够多，最优解就是真实的条件概率 p(y | x)。现实中这几个条件都不完全成立，所以还要在留出数据上拟合温度，再用 ECE、Brier 实测。这是经验上的保证，不是定理。</li>
         </ul>
         <p><b>它不严谨的地方：</b>只有分数之间的差值有意义，所有分数同时加一个常数，百分比不变。hⱼ 能看到排在前面的选项，所以选项顺序会影响结果，也不满足多项 logit 模型的"无关选项独立性"：Kev-0.5B 实测，加一个无关选项，前两名之间的 log-odds 平均变化 0.13。打分题在发布模型里被当成无序类别训练，score = Σ i·pᵢ 默认各等级之间距离相等。代码里有一个 <code>option_isolation</code> 模式，让每个选项只看材料、题目和它自己，从结构上保证与顺序无关；但它依赖打包掩码，新版 Qwen 的混合架构用不了，发布的模型都没有开。</p>
-      </div>
+        </div>
+      </details>
 
       <details class="dev">
         <summary>给程序员：对应的源码 <span class="tag">PointerHead</span></summary>
@@ -997,7 +1066,7 @@ allow = causal[None] &amp; same &amp; valid_key                           <span 
         <span class="step-tag">幕后</span>
         <h2>它是怎么学会的</h2>
       </div>
-      <p>前面说百分比"能当概率用"，靠的就是训练。办法是：给它做大量有标准答案的练习题。每做一题，看它给正确答案分了多少百分比，按"扣分规则"扣分，然后微调参数，让下次扣得少一点。</p>
+      <p>前面说百分比"能当概率用"，靠的就是训练。办法是：给它做大量有标准答案的练习题。每做一题，看它给正确答案分了多少百分比，按"扣分规则"扣分，然后微调参数（模型里那些可以调整的数字），让下次扣得少一点。</p>
       <h3>扣分规则：越自信地答错，扣得越狠</h3>
       <div class="tbl">
         <table>
@@ -1142,7 +1211,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
         <span class="step-tag">总结</span>
         <h2>和原版 Qwen 比，改了什么</h2>
       </div>
-      <p>一句话：<b>Qwen 本体的 Transformer 层基本没动</b>。没有改网络结构，没有加新词，tokenizer 也是原样。Kev 改的是四件事：<b>怎么喂输入、读哪个位置、用什么目标训练、怎么把输出变成答案</b>。下面先一眼看全，再分模型结构、训练、推理三块细讲，每块都配图和例子。</p>
+      <p>一句话：<b>Qwen 本体的 Transformer 层基本没动</b>。没有改网络结构，没有加新词，tokenizer 也是原样。Kev 改的是四件事：<b>怎么喂输入、读哪个位置、用什么目标训练、怎么把输出变成答案</b>。下面先一眼看全，再分模型结构、训练、推理三块细讲，每块都配图和例子。下文的 state 就是材料（那张工单）。</p>
 
       <figure>
         <div class="fig-box flows">
@@ -1407,7 +1476,7 @@ loss = F.cross_entropy(z[None], y, label_smoothing=label_smoothing)   <span clas
             <tr><td>注意力和位置</td><td>因果掩码，位置连续编号</td><td>加挡板，每道题从 state 后面重新编号；混合架构每题单独一行</td><td>题与题互不影响；state 只需要算一次</td></tr>
             <tr><td>损失</td><td>每个位置，在整个词表上算交叉熵</td><td>每道题一次，只在 K 个选项上算交叉熵；没有语言模型损失</td><td>直接优化"给对的选项高概率"；交叉熵是恰当评分规则，输出才有概率意义</td></tr>
             <tr><td>数据</td><td>海量通用文本和对话</td><td><code>decision-v7</code>：10,000 条公开数据 + 896 条策略题 + 1,680 条规则题；每个 epoch 重新打乱选项、加"以上都不是"、加干扰项</td><td>防止模型学到"总选第一个"这类捷径</td></tr>
-            <tr><td>优化</td><td>—</td><td>AdamW（weight decay 0.01）、OneCycleLR（10% warmup）、梯度裁剪 1.0、bf16 autocast；lr 1e-4（0.8B）或 5e-5（4B / 9B），2 个 epoch。27B：8 × H200，lr 2e-6，1 个 epoch，再与 LoRA 版按 0.85 : 0.15 做权重平均</td><td>—</td></tr>
+            <tr><td>训练超参数（想复现时才需要）</td><td>—</td><td>AdamW（weight decay 0.01）、OneCycleLR（10% warmup）、梯度裁剪 1.0、bf16 autocast；lr 1e-4（0.8B）或 5e-5（4B / 9B），2 个 epoch。27B：8 × H200，lr 2e-6，1 个 epoch，再与 LoRA 版按 0.85 : 0.15 做权重平均</td><td>—</td></tr>
             <tr><td>训练之后</td><td>—</td><td>在没训练过的数据上拟合温度 T，写进 <code>head.pt</code></td><td>交叉熵训出来的模型在新数据上偏自信</td></tr>
           </tbody>
         </table>
@@ -1511,8 +1580,8 @@ frustration → ["平静", "有点生气", "非常生气"]</span>题目 id（dep
           <tbody>
             <tr><td>生成方式</td><td>prefill 之后逐个 token decode，要采样，要处理停止符</td><td><b>只做 prefill</b>，不 decode，不采样，没有停止符</td></tr>
             <tr><td>多道题</td><td>分开问，或者让它一次写出所有答案</td><td>混合架构：state 算一次，缓存复制给每道题，各跑一行。纯注意力：一条打包序列加挡板</td></tr>
-            <tr><td>跨请求缓存</td><td>一般的 KV cache</td><td>同一篇 state 再来，直接复用缓存，只算题目那几行。按最近使用淘汰，默认最多存 4 篇、共 65,536 token</td></tr>
-            <tr><td>精度和加速</td><td>—</td><td>每批最多 64 个请求；CUDA 上用 CUDA graphs 和 Triton 融合算子；默认 bf16；加载时把 LoRA 合并进权重；Mac 上用 MLX</td></tr>
+            <tr><td>跨请求缓存</td><td>KV cache：缓存已经读过部分的中间结果，生成下一个字时不用重算</td><td>同一篇 state 再来，直接复用缓存，只算题目那几行。按最近使用淘汰，默认最多存 4 篇、共 65,536 token</td></tr>
+            <tr><td>工程加速（可跳过）</td><td>—</td><td>每批最多同时处理 64 个请求；NVIDIA 显卡上用 CUDA graphs 和 Triton 融合算子加速；默认用 bf16（一种省一半内存的数字格式）；加载时把 LoRA 直接加进原权重，推理不多花时间；苹果电脑上用 MLX（苹果芯片上的机器学习库）</td></tr>
           </tbody>
         </table>
       </div>
