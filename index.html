@@ -328,6 +328,21 @@ ol.steps-list li p { max-width: none; }
 .pv-data .mono { display: block; font-family: var(--f-mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); background: var(--code-bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0; }
 @media (max-width: 640px) { .pv-row { grid-template-columns: 1fr; gap: 6px; } .pv-row:not(:last-child)::after { left: 50%; } }
 
+/* JSON figures */
+.jpanel { fill: var(--code-bg); stroke: var(--line); stroke-width: 1; }
+.jbg0 { fill: color-mix(in srgb, var(--seg0) 18%, var(--code-bg)); }
+.jbg1 { fill: color-mix(in srgb, var(--seg1) 14%, var(--code-bg)); }
+.jbg2 { fill: color-mix(in srgb, var(--seg2) 14%, var(--code-bg)); }
+.jbg3 { fill: color-mix(in srgb, var(--accent) 12%, var(--code-bg)); }
+.jk { fill: var(--ink); font-weight: 600; }
+.jv { fill: var(--ink-2); }
+.jn { fill: var(--accent); font-weight: 600; }
+.jc { fill: var(--muted); }
+.jl1 { stroke: var(--seg1); stroke-width: 2; }
+.jl2 { stroke: var(--seg2); stroke-width: 2; }
+.jl3 { stroke: var(--accent); stroke-width: 2; }
+.jdot { fill: var(--accent); }
+
 /* programmer notes */
 details.dev { border: 1px dashed var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
 details.dev > summary { cursor: pointer; padding: 10px 14px; font-size: .9rem; color: var(--ink-2); list-style: none; display: flex; gap: 8px; align-items: center; }
@@ -348,6 +363,7 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
     <p>目录</p>
     <ol>
       <li><a href="#top"><span class="n">··</span>一图看懂</a></li>
+      <li><a href="#format"><span class="n">··</span>输入输出：JSON</a></li>
       <li><a href="#words"><span class="n">··</span>先认识几个词</a></li>
       <li><a href="#basics"><span class="n">··</span>先复习：大模型怎么说话</a></li>
       <li><a href="#why"><span class="n">··</span>为什么不直接问</a></li>
@@ -387,7 +403,7 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
           <div class="res" id="hero-res"></div>
         </div>
       </div>
-      <p class="small muted">项目 README 用的是这张工单的英文原文。本页的 47%、93% 这些数字都是 Kev-4B 对英文原文的真实返回，为了好读翻成了中文。</p>
+      <p class="small muted">项目 README 用的是这张工单的英文原文。本页的 47%、93% 这些数字都是 Kev-4B 对英文原文的真实返回，为了好读翻成了中文。实际发给 Kev 的不是一段话，而是一个 JSON 请求，下一节"输入和输出都是 JSON"会逐行讲。</p>
 
       <h3>中间发生了什么：六步</h3>
       <ol class="steps">
@@ -402,6 +418,274 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
       <p class="small">对大模型只有大概印象？建议先看 <a href="#words">先认识几个词</a> 和 <a href="#basics">先复习：普通大模型是怎么"说话"的</a>，各一分钟。</p>
     </header>
 
+    <!-- ============================================================ FORMAT -->
+    <section id="format">
+      <div class="sec-head">
+        <span class="step-tag">先说清楚</span>
+        <h2>输入和输出都是 JSON</h2>
+      </div>
+      <p>Jev 和 Kev 都不是"在聊天框里打一句话"。它们是一个网络接口：你把一个 <b>JSON 请求</b>发到 <code>POST /v1/systemone</code>，它回一个 <b>JSON 响应</b>。Kev 的接口照搬了 TypeSafe（做 Jev 的公司）的 System One API，所以同一个请求发给 Jev 或 Kev 都能用，TypeSafe 的 Python SDK 也能直接指向本地的 Kev。</p>
+      <p>请求里只有三样东西：要读的<b>材料</b>（<code>state</code>）、<b>模型名</b>（<code>model</code>）、<b>一组题目</b>（<code>questions</code>）。每道题再写清楚题型、题干和选项。下面就是本页那张工单的完整请求：</p>
+
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 530" role="img" aria-label="请求 JSON 逐行标注：state 是要读的材料；model 是模型名；questions 是一组题，键是你自己起的题目 id；每道题有 type、instructions 和 criteria；是非题可以不写 criteria；打分题的 criteria 是从低到高的数组。">
+            <rect x="16" y="26" width="416" height="494" rx="10" class="jpanel"/>
+            <rect x="24" y="52" width="400" height="20" rx="3" class="jbg0"/>
+            <rect x="24" y="112" width="400" height="180" rx="4" class="jbg1"/>
+            <rect x="24" y="292" width="400" height="80" rx="4" class="jbg2"/>
+            <rect x="24" y="372" width="400" height="100" rx="4" class="jbg3"/>
+
+            <text x="32" y="46" class="d-mono"><tspan class="jc">{</tspan></text>
+            <text x="46" y="66" class="d-mono"><tspan class="jk">"state"</tspan><tspan class="jc">: </tspan><tspan class="jv">"鞋子晚到了两周，尺码还不对……"</tspan><tspan class="jc">,</tspan></text>
+            <text x="46" y="86" class="d-mono"><tspan class="jk">"model"</tspan><tspan class="jc">: </tspan><tspan class="jv">"kev-latest"</tspan><tspan class="jc">,</tspan></text>
+            <text x="46" y="106" class="d-mono"><tspan class="jk">"questions"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="60" y="126" class="d-mono"><tspan class="jk">"department"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="74" y="146" class="d-mono"><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jn">"choice"</tspan><tspan class="jc">,</tspan></text>
+            <text x="74" y="166" class="d-mono"><tspan class="jk">"instructions"</tspan><tspan class="jc">: </tspan><tspan class="jv">"该交给哪个部门？"</tspan><tspan class="jc">,</tspan></text>
+            <text x="74" y="186" class="d-mono"><tspan class="jk">"criteria"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="88" y="206" class="d-mono"><tspan class="jk">"returns"</tspan><tspan class="jc">: </tspan><tspan class="jv">"换货、退款、错发或损坏"</tspan><tspan class="jc">,</tspan></text>
+            <text x="88" y="226" class="d-mono"><tspan class="jk">"shipping"</tspan><tspan class="jc">: </tspan><tspan class="jv">"物流状态、延误、丢件"</tspan><tspan class="jc">,</tspan></text>
+            <text x="88" y="246" class="d-mono"><tspan class="jk">"billing"</tspan><tspan class="jc">: </tspan><tspan class="jv">"扣款、发票、支付问题"</tspan></text>
+            <text x="74" y="266" class="d-mono"><tspan class="jc">}</tspan></text>
+            <text x="60" y="286" class="d-mono"><tspan class="jc">},</tspan></text>
+            <text x="60" y="306" class="d-mono"><tspan class="jk">"escalate"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="74" y="326" class="d-mono"><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jn">"noul"</tspan><tspan class="jc">,</tspan></text>
+            <text x="74" y="346" class="d-mono"><tspan class="jk">"instructions"</tspan><tspan class="jc">: </tspan><tspan class="jv">"需要紧急转人工吗？"</tspan></text>
+            <text x="60" y="366" class="d-mono"><tspan class="jc">},</tspan></text>
+            <text x="60" y="386" class="d-mono"><tspan class="jk">"frustration"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="74" y="406" class="d-mono"><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jn">"score"</tspan><tspan class="jc">,</tspan></text>
+            <text x="74" y="426" class="d-mono"><tspan class="jk">"instructions"</tspan><tspan class="jc">: </tspan><tspan class="jv">"客户有多生气？"</tspan><tspan class="jc">,</tspan></text>
+            <text x="74" y="446" class="d-mono"><tspan class="jk">"criteria"</tspan><tspan class="jc">: [</tspan><tspan class="jv">"平静", "有点生气", "非常生气"</tspan><tspan class="jc">]</tspan></text>
+            <text x="60" y="466" class="d-mono"><tspan class="jc">}</tspan></text>
+            <text x="46" y="486" class="d-mono"><tspan class="jc">}</tspan></text>
+            <text x="32" y="506" class="d-mono"><tspan class="jc">}</tspan></text>
+
+            <line x1="432" y1="62" x2="470" y2="53" class="d-arrow"/><circle cx="432" cy="62" r="3" class="jdot"/>
+            <line x1="432" y1="82" x2="470" y2="97" class="d-arrow"/><circle cx="432" cy="82" r="3" class="jdot"/>
+            <line x1="432" y1="102" x2="470" y2="141" class="d-arrow"/><circle cx="432" cy="102" r="3" class="jdot"/>
+            <line x1="432" y1="122" x2="470" y2="193" class="d-arrow"/><circle cx="432" cy="122" r="3" class="jdot"/>
+            <line x1="432" y1="142" x2="470" y2="237" class="d-arrow"/><circle cx="432" cy="142" r="3" class="jdot"/>
+            <line x1="432" y1="162" x2="470" y2="273" class="d-arrow"/><circle cx="432" cy="162" r="3" class="jdot"/>
+            <line x1="432" y1="222" x2="470" y2="317" class="d-arrow"/><circle cx="432" cy="222" r="3" class="jdot"/>
+            <line x1="432" y1="332" x2="470" y2="369" class="d-arrow"/><circle cx="432" cy="332" r="3" class="jdot"/>
+            <line x1="432" y1="442" x2="470" y2="443" class="d-arrow"/><circle cx="432" cy="442" r="3" class="jdot"/>
+
+            <rect x="470" y="30" width="390" height="46" rx="6" class="d-box"/>
+            <text x="482" y="49" class="d-txt d-sm d-bold">state：要读的材料</text>
+            <text x="482" y="67" class="d-txt d-sm d-muted">字符串、对象、数组都行；对象会被展开成"键: 值"文本</text>
+            <rect x="470" y="82" width="390" height="30" rx="6" class="d-box"/>
+            <text x="482" y="102" class="d-txt d-sm"><tspan class="d-bold">model：</tspan>模型名，kev-latest 或 jev-latest 都行</text>
+            <rect x="470" y="118" width="390" height="46" rx="6" class="d-box"/>
+            <text x="482" y="137" class="d-txt d-sm d-bold">questions：一组题，"题目 id → 题"</text>
+            <text x="482" y="155" class="d-txt d-sm d-muted">一次可以放任意多道题，共用同一份材料</text>
+            <rect x="470" y="170" width="390" height="46" rx="6" class="d-op"/>
+            <text x="482" y="189" class="d-txt d-sm d-bold">题目 id（如 department）：你自己起名</text>
+            <text x="482" y="207" class="d-txt d-sm d-muted">只用来把答案对回来，模型根本看不到它</text>
+            <rect x="470" y="222" width="390" height="30" rx="6" class="d-box"/>
+            <text x="482" y="242" class="d-txt d-sm"><tspan class="d-bold">type：</tspan>题型，choice / noul / score 三选一</text>
+            <rect x="470" y="258" width="390" height="30" rx="6" class="d-box"/>
+            <text x="482" y="278" class="d-txt d-sm"><tspan class="d-bold">instructions：</tspan>题干，问什么（可以省略）</text>
+            <rect x="470" y="294" width="390" height="46" rx="6" class="d-box"/>
+            <text x="482" y="313" class="d-txt d-sm d-bold">criteria：选项。选择题写成 {名字: 描述}</text>
+            <text x="482" y="331" class="d-txt d-sm d-muted">描述可以写 null；最多 255 个选项</text>
+            <rect x="470" y="346" width="390" height="46" rx="6" class="d-box"/>
+            <text x="482" y="365" class="d-txt d-sm d-bold">是非题可以不写 criteria</text>
+            <text x="482" y="383" class="d-txt d-sm d-muted">选项固定是 no / yes，写了就是给它们加描述</text>
+            <rect x="470" y="420" width="390" height="46" rx="6" class="d-box"/>
+            <text x="482" y="439" class="d-txt d-sm d-bold">打分题的 criteria 是数组</text>
+            <text x="482" y="457" class="d-txt d-sm d-muted">从低到高排好，最多 255 级；位置 0、1、2 就是等级</text>
+          </svg>
+        </div>
+        <figcaption>左边是请求本身，右边逐项标注。三道题用三种底色区分：蓝色是选择题，橙色是是非题，紫色是打分题。题目 id（department、escalate、frustration）是你随便起的名字，换成 a、b、c 也一样。</figcaption>
+      </figure>
+
+      <h3>三种题的 criteria 怎么写</h3>
+      <p>三种题最大的区别在 <code>criteria</code>（选项）这一项。下面每一列是一种题，从上往下依次是：你写的 <code>criteria</code>、Kev 改写后模型看到的选项、最后返回的答案。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 396" role="img" aria-label="三种题型对比：是非题的 criteria 可省略，模型看到 no 和 yes 两个选项，返回 yes 的概率；选择题的 criteria 是名字到描述的字典，模型看到每个名字加描述，返回最高的选项、把握和概率；打分题的 criteria 是从低到高的数组，模型看到各个等级，返回期望等级、把握和概率。">
+            <defs>
+              <marker id="ahj" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+            </defs>
+            <text x="155" y="24" text-anchor="middle" class="d-txt d-bold">是非题 noul</text>
+            <text x="440" y="24" text-anchor="middle" class="d-txt d-bold">选择题 choice</text>
+            <text x="725" y="24" text-anchor="middle" class="d-txt d-bold">打分题 score</text>
+
+            <rect x="20" y="36" width="270" height="108" rx="8" class="jpanel"/>
+            <rect x="305" y="36" width="270" height="108" rx="8" class="jpanel"/>
+            <rect x="590" y="36" width="270" height="108" rx="8" class="jpanel"/>
+            <text x="30" y="52" class="d-txt d-tiny d-muted">① 你在 criteria 里写的</text>
+            <text x="315" y="52" class="d-txt d-tiny d-muted">① 你在 criteria 里写的</text>
+            <text x="600" y="52" class="d-txt d-tiny d-muted">① 你在 criteria 里写的</text>
+            <text x="34" y="74" class="d-mono"><tspan class="jk">"criteria"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="48" y="94" class="d-mono"><tspan class="jk">"true"</tspan><tspan class="jc">: </tspan><tspan class="jv">"需要人工处理"</tspan><tspan class="jc">,</tspan></text>
+            <text x="48" y="114" class="d-mono"><tspan class="jk">"false"</tspan><tspan class="jc">: </tspan><tspan class="jv">"可以自动处理"</tspan><tspan class="jc">}</tspan></text>
+            <text x="34" y="134" class="d-txt d-tiny d-muted">整个 criteria 都可以省略</text>
+            <text x="319" y="74" class="d-mono"><tspan class="jk">"criteria"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="333" y="94" class="d-mono"><tspan class="jk">"returns"</tspan><tspan class="jc">: </tspan><tspan class="jv">"换货、退款…"</tspan><tspan class="jc">,</tspan></text>
+            <text x="333" y="114" class="d-mono"><tspan class="jk">"shipping"</tspan><tspan class="jc">: </tspan><tspan class="jv">null</tspan><tspan class="jc">, …}</tspan></text>
+            <text x="319" y="134" class="d-txt d-tiny d-muted">1 到 255 个选项，描述可以是 null</text>
+            <text x="604" y="74" class="d-mono"><tspan class="jk">"criteria"</tspan><tspan class="jc">: [</tspan></text>
+            <text x="618" y="94" class="d-mono"><tspan class="jv">"平静", "有点生气",</tspan></text>
+            <text x="618" y="114" class="d-mono"><tspan class="jv">"非常生气"</tspan><tspan class="jc">]</tspan></text>
+            <text x="604" y="134" class="d-txt d-tiny d-muted">1 到 255 级，从低到高排</text>
+
+            <line x1="155" y1="146" x2="155" y2="168" class="d-arrow" marker-end="url(#ahj)"/>
+            <line x1="440" y1="146" x2="440" y2="168" class="d-arrow" marker-end="url(#ahj)"/>
+            <line x1="725" y1="146" x2="725" y2="168" class="d-arrow" marker-end="url(#ahj)"/>
+            <text x="163" y="162" class="d-txt d-tiny d-muted">改写（第 1 步）</text>
+            <text x="448" y="162" class="d-txt d-tiny d-muted">改写（第 1 步）</text>
+            <text x="733" y="162" class="d-txt d-tiny d-muted">改写（第 1 步）</text>
+
+            <rect x="20" y="172" width="270" height="106" rx="8" class="d-box"/>
+            <rect x="305" y="172" width="270" height="106" rx="8" class="d-box"/>
+            <rect x="590" y="172" width="270" height="106" rx="8" class="d-box"/>
+            <text x="30" y="188" class="d-txt d-tiny d-muted">② 模型看到的选项（按顺序）</text>
+            <text x="315" y="188" class="d-txt d-tiny d-muted">② 模型看到的选项（按顺序）</text>
+            <text x="600" y="188" class="d-txt d-tiny d-muted">② 模型看到的选项（按顺序）</text>
+            <rect x="34" y="196" width="242" height="22" rx="4" class="jbg2"/><text x="44" y="211" class="d-mono">no: 可以自动处理</text>
+            <rect x="34" y="222" width="242" height="22" rx="4" class="jbg2"/><text x="44" y="237" class="d-mono">yes: 需要人工处理</text>
+            <text x="34" y="266" class="d-txt d-tiny d-muted">顺序固定：先 no，后 yes</text>
+            <rect x="319" y="196" width="242" height="22" rx="4" class="jbg1"/><text x="329" y="211" class="d-mono">returns: 换货、退款…</text>
+            <rect x="319" y="222" width="242" height="22" rx="4" class="jbg1"/><text x="329" y="237" class="d-mono">shipping</text>
+            <rect x="319" y="248" width="242" height="22" rx="4" class="jbg1"/><text x="329" y="263" class="d-mono">billing: 扣款、发票…</text>
+            <rect x="604" y="196" width="242" height="22" rx="4" class="jbg3"/><text x="614" y="211" class="d-mono">平静（0 级）</text>
+            <rect x="604" y="222" width="242" height="22" rx="4" class="jbg3"/><text x="614" y="237" class="d-mono">有点生气（1 级）</text>
+            <rect x="604" y="248" width="242" height="22" rx="4" class="jbg3"/><text x="614" y="263" class="d-mono">非常生气（2 级）</text>
+
+            <line x1="155" y1="280" x2="155" y2="302" class="d-arrow" marker-end="url(#ahj)"/>
+            <line x1="440" y1="280" x2="440" y2="302" class="d-arrow" marker-end="url(#ahj)"/>
+            <line x1="725" y1="280" x2="725" y2="302" class="d-arrow" marker-end="url(#ahj)"/>
+            <text x="163" y="296" class="d-txt d-tiny d-muted">打分 → 概率 → 整理</text>
+            <text x="448" y="296" class="d-txt d-tiny d-muted">打分 → 概率 → 整理</text>
+            <text x="733" y="296" class="d-txt d-tiny d-muted">打分 → 概率 → 整理</text>
+
+            <rect x="20" y="306" width="270" height="82" rx="8" class="d-op"/>
+            <rect x="305" y="306" width="270" height="82" rx="8" class="d-op"/>
+            <rect x="590" y="306" width="270" height="82" rx="8" class="d-op"/>
+            <text x="30" y="322" class="d-txt d-tiny d-muted">③ 返回的答案</text>
+            <text x="315" y="322" class="d-txt d-tiny d-muted">③ 返回的答案</text>
+            <text x="600" y="322" class="d-txt d-tiny d-muted">③ 返回的答案</text>
+            <text x="34" y="344" class="d-mono"><tspan class="jk">"noul"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.93</tspan></text>
+            <text x="34" y="364" class="d-txt d-tiny d-muted">就是"yes"的概率</text>
+            <text x="319" y="342" class="d-mono"><tspan class="jk">"choice"</tspan><tspan class="jc">: </tspan><tspan class="jn">"returns"</tspan><tspan class="jc">,</tspan></text>
+            <text x="319" y="360" class="d-mono"><tspan class="jk">"confidence"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.21</tspan><tspan class="jc">,</tspan></text>
+            <text x="319" y="378" class="d-mono"><tspan class="jk">"probabilities"</tspan><tspan class="jc">: {…}</tspan></text>
+            <text x="604" y="342" class="d-mono"><tspan class="jk">"score"</tspan><tspan class="jc">: </tspan><tspan class="jn">1.44</tspan><tspan class="jc">,</tspan></text>
+            <text x="604" y="360" class="d-mono"><tspan class="jk">"confidence"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.34</tspan><tspan class="jc">,</tspan></text>
+            <text x="604" y="378" class="d-mono"><tspan class="jk">"legend"</tspan><tspan class="jc">: {…}, </tspan><tspan class="jk">"probabilities"</tspan><tspan class="jc">: {…}</tspan></text>
+          </svg>
+        </div>
+        <figcaption>是非题其实就是固定只有 no、yes 两个选项的选择题；打分题就是选项排好了顺序的选择题。所以三种题在 Kev 里走的是同一套计算，只是输入写法和最后的整理方式不同。</figcaption>
+      </figure>
+
+      <h3>响应：按同一个 id 对回来</h3>
+      <p>响应里的 <code>answers</code> 用的是和请求里一模一样的题目 id。你问的是 <code>department</code>，答案就放在 <code>answers.department</code> 下面。除了答案，响应里还有用量和耗时：</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg class="wide" viewBox="0 0 880 322" role="img" aria-label="响应 JSON：answers 下的键和请求 questions 里的题目 id 一一对应；每个答案带有题型和对应字段；另外还有 model、usage 和 latency_ms。">
+            <text x="20" y="30" class="d-txt d-bold">请求里的题目</text>
+            <text x="372" y="30" class="d-txt d-bold">响应</text>
+            <text x="418" y="30" class="d-txt d-tiny d-muted">（HTTP 响应头里还带一个 x-typesafe-request-id）</text>
+
+            <text x="20" y="82" class="d-txt d-sm"><tspan class="d-bold">model：</tspan>回显请求里的模型名</text>
+            <line x1="214" y1="78" x2="382" y2="78" class="d-arrow"/><circle cx="382" cy="78" r="3" class="jdot"/>
+
+            <rect x="20" y="90" width="280" height="156" rx="8" class="jpanel"/>
+            <rect x="26" y="112" width="268" height="22" rx="3" class="jbg1"/>
+            <rect x="26" y="156" width="268" height="22" rx="3" class="jbg2"/>
+            <rect x="26" y="178" width="268" height="22" rx="3" class="jbg3"/>
+            <text x="34" y="104" class="d-mono"><tspan class="jk">"questions"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="48" y="127" class="d-mono"><tspan class="jk">"department"</tspan><tspan class="jc">: {…},</tspan></text>
+            <text x="48" y="171" class="d-mono"><tspan class="jk">"escalate"</tspan><tspan class="jc">: {…},</tspan></text>
+            <text x="48" y="193" class="d-mono"><tspan class="jk">"frustration"</tspan><tspan class="jc">: {…}</tspan></text>
+            <text x="34" y="236" class="d-mono"><tspan class="jc">}</tspan></text>
+
+            <line x1="294" y1="123" x2="366" y2="123" class="jl1"/>
+            <line x1="294" y1="167" x2="366" y2="167" class="jl2"/>
+            <line x1="294" y1="189" x2="366" y2="189" class="jl3"/>
+            <text x="330" y="148" text-anchor="middle" class="d-txt d-tiny d-muted">按 id 对回</text>
+
+            <rect x="360" y="44" width="508" height="270" rx="8" class="jpanel"/>
+            <rect x="366" y="112" width="496" height="44" rx="3" class="jbg1"/>
+            <rect x="366" y="156" width="496" height="22" rx="3" class="jbg2"/>
+            <rect x="366" y="178" width="496" height="44" rx="3" class="jbg3"/>
+            <text x="374" y="60" class="d-mono"><tspan class="jc">{</tspan></text>
+            <text x="388" y="82" class="d-mono"><tspan class="jk">"model"</tspan><tspan class="jc">: </tspan><tspan class="jv">"kev-latest"</tspan><tspan class="jc">,</tspan></text>
+            <text x="388" y="104" class="d-mono"><tspan class="jk">"answers"</tspan><tspan class="jc">: {</tspan></text>
+            <text x="402" y="127" class="d-mono"><tspan class="jk">"department"</tspan><tspan class="jc">: {</tspan><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jv">"choice"</tspan><tspan class="jc">, </tspan><tspan class="jk">"choice"</tspan><tspan class="jc">: </tspan><tspan class="jn">"returns"</tspan><tspan class="jc">,</tspan></text>
+            <text x="500" y="149" class="d-mono"><tspan class="jk">"confidence"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.21</tspan><tspan class="jc">, </tspan><tspan class="jk">"probabilities"</tspan><tspan class="jc">: {…}},</tspan></text>
+            <text x="402" y="171" class="d-mono"><tspan class="jk">"escalate"</tspan><tspan class="jc">: {</tspan><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jv">"noul"</tspan><tspan class="jc">, </tspan><tspan class="jk">"noul"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.93</tspan><tspan class="jc">},</tspan></text>
+            <text x="402" y="193" class="d-mono"><tspan class="jk">"frustration"</tspan><tspan class="jc">: {</tspan><tspan class="jk">"type"</tspan><tspan class="jc">: </tspan><tspan class="jv">"score"</tspan><tspan class="jc">, </tspan><tspan class="jk">"score"</tspan><tspan class="jc">: </tspan><tspan class="jn">1.44</tspan><tspan class="jc">,</tspan></text>
+            <text x="500" y="215" class="d-mono"><tspan class="jk">"confidence"</tspan><tspan class="jc">: </tspan><tspan class="jn">0.34</tspan><tspan class="jc">, </tspan><tspan class="jk">"legend"</tspan><tspan class="jc">: {…}, …}</tspan></text>
+            <text x="388" y="237" class="d-mono"><tspan class="jc">},</tspan></text>
+            <text x="388" y="259" class="d-mono"><tspan class="jk">"usage"</tspan><tspan class="jc">: {</tspan><tspan class="jk">"input_tokens"</tspan><tspan class="jc">: </tspan><tspan class="jn">101</tspan><tspan class="jc">, </tspan><tspan class="jk">"output_tokens"</tspan><tspan class="jc">: </tspan><tspan class="jn">161</tspan><tspan class="jc">},</tspan></text>
+            <text x="388" y="281" class="d-mono"><tspan class="jk">"latency_ms"</tspan><tspan class="jc">: </tspan><tspan class="jn">495</tspan></text>
+            <text x="374" y="303" class="d-mono"><tspan class="jc">}</tspan></text>
+
+            <text x="20" y="262" class="d-txt d-sm"><tspan class="d-bold">usage：</tspan>input_tokens = 读了多少 token</text>
+            <text x="20" y="280" class="d-txt d-sm d-muted">output_tokens = 答案 JSON 的 token 数，不是生成的</text>
+            <line x1="270" y1="257" x2="382" y2="255" class="d-arrow"/><circle cx="382" cy="255" r="3" class="jdot"/>
+            <text x="20" y="304" class="d-txt d-sm"><tspan class="d-bold">latency_ms：</tspan>模型计算用了多少毫秒</text>
+            <line x1="218" y1="300" x2="382" y2="278" class="d-arrow"/><circle cx="382" cy="278" r="3" class="jdot"/>
+          </svg>
+        </div>
+        <figcaption>同一种颜色就是同一道题：请求里的 id 和响应里的 id 一一对应。每个答案都带一个 type，告诉你它是哪种题，后面跟的字段随题型不同。数值来自 README 里 Kev-4B 的真实返回。</figcaption>
+      </figure>
+
+      <div class="box key">
+        <span class="lab key">为什么要用 JSON，而不是直接问一句话</span>
+        <ul class="plain">
+          <li><b>选项必须清清楚楚。</b>Kev 要在"这些选项"上算概率，就得准确知道一共有几个选项、每个从哪开始到哪结束。JSON 把选项一个个分开写，服务器才能在每个选项两边插上 <code>&lt;opt&gt;</code> 和 <code>&lt;/opt&gt;</code>（第 1 步）。</li>
+          <li><b>一次问很多题。</b>多道题放在同一个请求里，共用一份材料，材料只读一遍（第 2 步）。</li>
+          <li><b>结果给程序用。</b>返回的结构永远一样，代码直接读 <code>answers.department.choice</code> 就行，不用从一段话里找答案。</li>
+        </ul>
+      </div>
+
+      <h3>两种发法</h3>
+      <div class="cards two">
+        <div class="card">
+          <span class="tp">直接发 HTTP 请求</span>
+<pre class="wrap"><code>curl -s localhost:8009/v1/systemone \
+  -H 'content-type: application/json' \
+  -d '{"state": "鞋子晚到了两周……",
+       "model": "kev-latest",
+       "questions": {…}}'</code></pre>
+          <p>服务器默认只监听本机。设了 <code>KEV_API_KEY</code> 时，要带上 <code>Authorization: Bearer &lt;key&gt;</code>。</p>
+        </div>
+        <div class="card">
+          <span class="tp">用 TypeSafe 的 Python SDK</span>
+<pre class="wrap"><code>from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
+
+client = TypeSafeClient(api_key="local",
+    base_url="http://127.0.0.1:8009", model="kev-latest")
+r = client.system_one(state="鞋子晚到了两周……", questions={
+    "department": Choice(instructions="该交给哪个部门？",
+        criteria={"returns": "换货、退款…", "shipping": None, "billing": None}),
+    "escalate": Noul(instructions="需要紧急转人工吗？"),
+    "frustration": Score(instructions="客户有多生气？",
+        criteria=["平静", "有点生气", "非常生气"])})
+print(r.choices["department"].choice, r.nouls["escalate"].noul)</code></pre>
+          <p>SDK 帮你拼出同样的 JSON。原本调 Jev 的代码，把 <code>base_url</code> 换成 Kev 的地址就能用。</p>
+        </div>
+      </div>
+      <p class="small muted">这个 JSON 怎样一步步变成模型读的那串 token，见第 1 步，以及"对比原版 Qwen"一节里的"输入要改写什么"。</p>
+
+      <details class="dev">
+        <summary>给程序员：完整的字段规则 <span class="tag">kev/api.py · kev/serve.py</span></summary>
+        <div class="dev-body">
+          <ul class="plain">
+            <li><code>state</code>：任意 JSON 值（字符串、数字、布尔、对象、数组、null），由 <code>render</code> 展开成文本。服务时最长 65,536 token，超长返回 422（设 <code>KEV_TRUNCATE_STATES=1</code> 才截断，响应里多出 <code>truncated</code> 和 <code>usage.state_tokens</code>、<code>state_tokens_used</code>）。</li>
+            <li><code>model</code>：默认 <code>kev-latest</code>；<code>jev-latest</code> 也指向同一个模型，这样没改配置的 TypeSafe 客户端也能直接用。</li>
+            <li><code>questions</code>：至少一道题，题目 id 任意。<code>instructions</code> 也可以是对象或数组，同样会被展开成文本。</li>
+            <li><code>noul</code>：<code>criteria</code> 可选，只认 <code>true</code>、<code>false</code> 两个键。<code>choice</code>：<code>criteria</code> 必填，1 到 255 个键，值是描述或 null。<code>score</code>：<code>criteria</code> 必填，1 到 255 项的数组。</li>
+            <li>格式不对返回 422。其他接口：<code>GET /v1/models</code>（模型信息）、<code>POST /v1/systemone/permute</code>（同一道选择题换多种选项顺序跑）、<code>POST /v1/systemone/separate</code>（每道题单独跑，用来对比）。</li>
+          </ul>
+        </div>
+      </details>
+    </section>
+
     <!-- ============================================================ WORDS -->
     <section id="words">
       <div class="sec-head"><h2>先认识几个词</h2></div>
@@ -414,8 +698,8 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
             <tr><td>hidden state（笔记）</td><td>模型读到某个位置时，留下的一份"读到这里为止的理解"。其实是几千个数字，人看不懂</td><td>"先复习"、第 3 步</td></tr>
             <tr><td>LM head（嘴）</td><td>普通大模型的最后一层：把笔记变成"下一个 token 是谁"的概率</td><td>Kev 把它拆掉了</td></tr>
             <tr><td>prefill / decode</td><td>prefill：把已有的字一次读完；decode：之后每多说一个字，就再算一遍</td><td>Kev 只做 prefill</td></tr>
-            <tr><td>state（材料）</td><td>要读的那段文字</td><td>那张工单</td></tr>
-            <tr><td>question（题）/ option（选项）</td><td>要回答的问题，和可以选的答案。题分是非题、选择题、打分题三种</td><td>"该交给哪个部门？"；退换货、物流、账单</td></tr>
+            <tr><td>state（材料）</td><td>要读的那段文字，就是 JSON 请求里的 <code>state</code> 字段</td><td>那张工单</td></tr>
+            <tr><td>question（题）/ option（选项）</td><td>要回答的问题，和可以选的答案。题分是非题、选择题、打分题三种；在 JSON 里分别是 <code>questions</code> 和 <code>criteria</code></td><td>"该交给哪个部门？"；退换货、物流、账单</td></tr>
             <tr><td>special token</td><td>词表里的特殊 token，不是普通文字。Kev 用 5 个来标出材料、题目、选项的边界</td><td><code>&lt;state&gt;</code> <code>&lt;q&gt;</code> <code>&lt;opt&gt;</code> <code>&lt;/opt&gt;</code> <code>&lt;decide&gt;</code>，第 1 步</td></tr>
             <tr><td>挡板（attention mask）</td><td>规定每个 token 可以回头看谁、不可以看谁</td><td>第 2 步</td></tr>
             <tr><td>座位号（position id）</td><td>每个 token 的位置编号，模型靠它知道谁在前、谁在后</td><td>第 2 步</td></tr>
@@ -585,7 +869,7 @@ footer { padding-top: 40px; border-top: 1px solid var(--line); font-size: .875re
         <span class="step-tag">第 1 步</span>
         <h2>摆成一行</h2>
       </div>
-      <p>模型只会读一长串字。所以第一步，要把材料、题目、选项排成一行，并在中间插几个 special token。这就像在试卷上用彩色括号标出：哪里是阅读材料，哪里是第 1 题，每个选项从哪开始、到哪结束。</p>
+      <p>模型只会读一长串 token，可是请求是一个 JSON。所以第一步，要把 JSON 里的材料、题目、选项排成一行，并在中间插几个 special token。这就像在试卷上用彩色括号标出：哪里是阅读材料，哪里是第 1 题，每个选项从哪开始、到哪结束。</p>
       <div class="seq" aria-label="例子排成一行后的样子">
         <div><span class="mk seg-0">&lt;state&gt;</span>鞋子晚到了两周，尺码还不对。另外我看到卡上被扣了两次钱。</div>
         <div class="seg-1"><span class="mk seg-1">&lt;q&gt;</span>该交给哪个部门？<span class="mk seg-1">&lt;opt&gt;</span><span class="ot">退换货</span><span class="mk read">&lt;/opt&gt;</span><span class="mk seg-1">&lt;opt&gt;</span><span class="ot">物流</span><span class="mk read">&lt;/opt&gt;</span><span class="mk seg-1">&lt;opt&gt;</span><span class="ot">账单</span><span class="mk read">&lt;/opt&gt;</span><span class="mk read">&lt;decide&gt;</span></div>
