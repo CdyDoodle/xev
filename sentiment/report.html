@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>xev-sentiment 实验报告</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+/* Layout: an experiment report read top to bottom. One 52rem column with a sticky section index on wide screens; every
+   chart sits in a card with its claim as the title. Two series colours: baseline (muted slate) and ours (violet). */
+:root {
+  --bg: #f4f6f9; --panel: #ffffff; --ink: #161d27; --ink-2: #434c5a; --muted: #687180;
+  --line: #d8dde5; --line-2: #e9edf2; --code-bg: #eef1f5;
+  --ours: #4a3aa7; --base: #8a93a0; --accent-soft: #ebe8f8;
+  --good: #0a8f0a; --bad: #c43d3d; --good-soft: #e3f4e3; --bad-soft: #fbe7e7;
+  --f-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Noto Sans SC", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --panel: #181d25; --ink: #e7ebf0; --ink-2: #b9c0ca; --muted: #8d96a3;
+    --line: #2c333d; --line-2: #222831; --code-bg: #1d232c;
+    --ours: #9085e9; --base: #7d8694; --accent-soft: #262245;
+    --good: #4cc44c; --bad: #ec7b7b; --good-soft: #17301a; --bad-soft: #3a1c1c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --panel: #181d25; --ink: #e7ebf0; --ink-2: #b9c0ca; --muted: #8d96a3;
+  --line: #2c333d; --line-2: #222831; --code-bg: #1d232c;
+  --ours: #9085e9; --base: #7d8694; --accent-soft: #262245;
+  --good: #4cc44c; --bad: #ec7b7b; --good-soft: #17301a; --bad-soft: #3a1c1c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.78; }
+a { color: var(--ours); text-underline-offset: 3px; }
+.layout { max-width: 78rem; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); padding-block: 40px 96px; display: grid; gap: 56px; }
+@media (min-width: 1180px) { .layout { grid-template-columns: 12rem minmax(0, 1fr); } }
+main { min-width: 0; max-width: 52rem; display: flex; flex-direction: column; }
+.toc { display: none; }
+@media (min-width: 1180px) { .toc { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 36px); align-self: start; font-size: 13.5px; } }
+.toc p { margin: 0 0 10px; color: var(--muted); font-size: 12px; letter-spacing: .06em; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border-left: 1px solid var(--line); }
+.toc a { display: block; padding: 4px 0 4px 14px; color: var(--ink-2); text-decoration: none; margin-left: -1px; border-left: 2px solid transparent; }
+.toc a:hover { color: var(--ink); border-left-color: var(--ours); }
+.toc .n { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); margin-right: 6px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.7rem); font-weight: 700; }
+h2 { font-size: 1.5rem; font-weight: 700; }
+h3 { font-size: 1.08rem; font-weight: 600; }
+p { margin: 0; max-width: 44em; }
+.eyebrow { font-size: 12.5px; color: var(--muted); letter-spacing: .05em; font-family: var(--f-mono); }
+.lead { font-size: 1.08rem; color: var(--ink-2); line-height: 1.85; }
+.muted { color: var(--muted); } .small { font-size: .875rem; }
+code { font-family: var(--f-mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font: 12.6px/1.65 var(--f-mono); }
+pre code { background: none; padding: 0; }
+header.hero { display: grid; gap: 16px; padding-bottom: 32px; }
+section { display: grid; gap: 16px; padding-block: 40px; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.sec-head { display: grid; gap: 4px; }
+.sec-tag { font-family: var(--f-mono); font-size: 12.5px; color: var(--ours); letter-spacing: .04em; }
+ul.plain, ol.plain { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 44em; }
+.tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.tile .k { font-size: 12.5px; color: var(--muted); }
+.tile .v { font-family: var(--f-display); font-size: 1.7rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.tile .d { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.up { color: var(--good); } .down { color: var(--bad); }
+.finding { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; display: grid; gap: 8px; }
+.finding ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; line-height: 1.55; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: .8rem; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td.best { font-weight: 700; }
+tr.ours td:first-child { color: var(--ours); font-weight: 600; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 8px; min-width: 0; }
+.card h3 { font-family: var(--f-body); font-size: 1rem; font-weight: 700; }
+.card .note { font-size: .85rem; color: var(--muted); max-width: none; }
+.chart { position: relative; min-height: 220px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--ink-2); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); padding: 6px 10px; font-size: 12px; white-space: nowrap; z-index: 3; }
+.tip .t { color: var(--muted); }
+.callout { background: var(--accent-soft); border-radius: 8px; padding: 12px 16px; font-size: .94rem; }
+.warn { background: var(--bad-soft); border-radius: 8px; padding: 12px 16px; font-size: .94rem; }
+.errs { display: grid; gap: 8px; }
+.err { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font-size: .9rem; display: grid; gap: 4px; }
+.err .meta { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+footer { padding-top: 32px; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); display: grid; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" aria-label="目录">
+    <p>目录</p>
+    <ol>
+      <li><a href="#summary"><span class="n">··</span>摘要</a></li>
+      <li><a href="#setup"><span class="n">1</span>实验设置</a></li>
+      <li><a href="#data"><span class="n">2</span>数据清洗</a></li>
+      <li><a href="#baseline"><span class="n">3</span>Baseline</a></li>
+      <li><a href="#training"><span class="n">4</span>训练过程</a></li>
+      <li><a href="#calibration"><span class="n">5</span>Calibration</a></li>
+      <li><a href="#test"><span class="n">6</span>Test 结果</a></li>
+      <li><a href="#ood"><span class="n">7</span>Out-of-domain</a></li>
+      <li><a href="#errors"><span class="n">8</span>错误分析</a></li>
+      <li><a href="#serving"><span class="n">9</span>Serving</a></li>
+      <li><a href="#conclusion"><span class="n">10</span>结论与下一步</a></li>
+      <li><a href="#repro"><span class="n">··</span>复现</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero" id="summary">
+      <div class="eyebrow">xev / sentiment · 实验报告 · 2026-10-26</div>
+      <h1>xev-sentiment 实验报告</h1>
+      <p class="lead">我们从 <b>Qwen3.5-4B-Base</b> 开始，用自己写的 LoRA + Kev-style pointer head 代码，在清洗后的 ChnSentiCorp 上做了 2 个 epoch 的 post-training，得到一个输出 calibrated probability 的中文 sentiment classifier。在领域内的 test 上，它比不训练的 zero-shot baseline 准确率高 5.2 个百分点；但在没见过的外卖评论上，它反而比 baseline 低 1.3 个百分点。</p>
+      <div class="tiles">
+        <div class="tile"><span class="k">Test accuracy（848 条）</span><span class="v">0.956</span><span class="d up">比 baseline 0.905 高 +5.2 pp，CI [+3.5, +7.0]</span></div>
+        <div class="tile"><span class="k">Test NLL</span><span class="v">0.123</span><span class="d up">baseline 0.236，约减半</span></div>
+        <div class="tile"><span class="k">错误率 ≤1% 时可自动处理</span><span class="v">85.7%</span><span class="d up">baseline 42.7%</span></div>
+        <div class="tile"><span class="k">外卖 OOD accuracy（11,973 条）</span><span class="v">0.886</span><span class="d down">比 baseline 0.899 低 −1.3 pp，CI [−1.8, −0.9]</span></div>
+      </div>
+      <div class="finding">
+        <h3>主要发现</h3>
+        <ol>
+          <li><b>原始 ChnSentiCorp 切分有严重 leakage。</b>test 里 324 条（27%）、validation 里 328 条和 train 一字不差，另有 36 条评论在不同副本里标签互相矛盾。全部删除后，test 剩 848 条。</li>
+          <li><b>Zero-shot baseline 已经很强。</b>不训练的 Qwen3.5-4B-Base 读 A/B 字母概率，validation 上就有 0.892 的准确率、0.031 的 ECE。</li>
+          <li><b>Post-training 在领域内明显有效，校准也更好。</b>test accuracy 0.905 → 0.956；NLL、Brier 都约减半；交换选项顺序答案改变的比例 2.0% → 0.35%。</li>
+          <li><b>但领域外略变差。</b>外卖评论很短（47% 不超过 10 个 token），正面只占 33%；模型在长评论、正面占 53% 的数据上训练后，对这种分布不如 base model 稳。</li>
+          <li><b>剩下的错误里有不少是标注错误。</b>最有把握的 15 个 test 错误中，约 10 个看起来是标签标反了。</li>
+        </ol>
+      </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <section id="setup">
+      <div class="sec-head"><span class="sec-tag">1</span><h2>实验设置</h2></div>
+      <div class="tbl"><table>
+        <thead><tr><th>项目</th><th>设置</th></tr></thead>
+        <tbody>
+          <tr><td>Base model</td><td><code>Qwen/Qwen3.5-4B-Base</code> @ <code>1001bb4d</code>，attention + Gated DeltaNet 混合结构，hidden size 2,560；去掉 LM head，bf16，冻结</td></tr>
+          <tr><td>Readout</td><td>自己实现的 Kev-style pointer head：<code>&lt;state&gt; 评论 &lt;q&gt; 这条评论的情感倾向是？ &lt;opt&gt; 负面：… &lt;/opt&gt; &lt;opt&gt; 正面：… &lt;/opt&gt; &lt;decide&gt;</code>，score_j = (W_q h_decide)·(W_k h_opt_j)/√256</td></tr>
+          <tr><td>Trainable</td><td>LoRA r=16、alpha=32、dropout 0.05（attention、MLP、DeltaNet 的投影）+ pointer head（d→256，fp32），共 33.8M 参数，占 0.80%</td></tr>
+          <tr><td>Loss</td><td>两个选项上的 cross-entropy；每条样本每个 epoch 随机交换选项顺序（p=0.5）</td></tr>
+          <tr><td>Optimizer</td><td>AdamW（weight decay 0.01），LoRA 与 head 的 lr 都是 1e-4，5% warmup 后 cosine 到 0，gradient clipping 1.0</td></tr>
+          <tr><td>Batch / steps</td><td>micro-batch 4 × accumulation 4 = 16；2 个 epoch，共 1,028 个 step；bf16 autocast + gradient checkpointing</td></tr>
+          <tr><td>Selection</td><td>每 200 步在 validation 上评估，保留 NLL 最低的 checkpoint（step 1000）</td></tr>
+          <tr><td>Calibration</td><td>在 validation 上从 0.25–4 的 121 个候选里拟合 temperature，T=1.23</td></tr>
+          <tr><td>Hardware</td><td>RTX 4090 24 GB，WSL Ubuntu；torch 2.8.0+cu128、transformers 5.17.0、peft 0.21.0、flash-linear-attention 0.5.2</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><b>相对计划书的改动</b>（都在 review 点上确认过）：① 题目措辞从"这条酒店评论"改为"这条评论"，因为数据里还有电脑和书籍评论；② 额外删除标签矛盾的重复评论；③ pointer head 的 lr 从 1e-3 降到 1e-4，W_k 改为零初始化（原因见第 4 节）；④ 计划里没有的外卖 OOD 测试已经补上。</div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="data">
+      <div class="sec-head"><span class="sec-tag">2</span><h2>数据清洗：原始切分有严重 leakage</h2></div>
+      <p>数据是 <code>lansinuote/ChnSentiCorp</code> @ <code>b0c4c119</code>（酒店、笔记本电脑、书籍三个领域的中文评论）。清洗按顺序做三件事：删掉标签互相矛盾的评论（同一段文字在不同地方被标成相反的标签，所有副本都删）；同一个 split 里的重复只保留一条；validation 和 test 里与 train 一字不差的评论全部删掉。</p>
+      <div class="tbl"><table id="data-table">
+        <thead><tr><th>split</th><th class="num">原始</th><th class="num">标签矛盾</th><th class="num">重复</th><th class="num">与 train 重复</th><th class="num">保留</th><th class="num">negative</th><th class="num">positive</th><th class="num">token p50 / p99</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <ul class="plain">
+        <li>test 里 324 条（27%）和 train 完全一样。用原始切分训练再测，等于有四分之一以上的题是模型背过答案的，公开的 ChnSentiCorp 准确率因此可能偏高；我们的数字因为去掉了这些题，会比公开数字低，但更可信。</li>
+        <li>长度：token p99 约 320，截断长度 384 覆盖 99% 以上的评论。</li>
+        <li>清洗后正面比例：train 53%，test 59%，略有不同，所以同时报告两类各自的 recall。</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="baseline">
+      <div class="sec-head"><span class="sec-tag">3</span><h2>Zero-shot baseline</h2></div>
+      <p>保留 base model 的 LM head，用 prompt <code>评论：…\n这条评论的情感是？\nA. 正面\nB. 负面\n答案：</code>，比较下一个 token 是 "A" 还是 "B" 的 logit。两种选项顺序各跑一遍再平均，消除对字母位置的偏好。温度在 validation 上拟合（T=1.20），test 和外卖数据直接沿用。</p>
+      <div class="tbl"><table>
+        <thead><tr><th>validation（843 条）</th><th class="num">accuracy</th><th class="num">NLL</th><th class="num">ECE</th><th class="num">交换顺序答案变化</th></tr></thead>
+        <tbody>
+          <tr><td>Baseline，T=1</td><td class="num">0.892</td><td class="num">0.269</td><td class="num">0.031</td><td class="num" rowspan="2">2.6%</td></tr>
+          <tr><td>Baseline，T=1.20</td><td class="num">0.892</td><td class="num">0.263</td><td class="num">0.019</td></tr>
+        </tbody>
+      </table></div>
+      <p>这个 baseline 不弱：不用任何训练，准确率接近 90%，概率也基本是准的。这说明 4B 的 base model 本身已经"懂"情感，post-training 要做的是把这份能力读得更准。</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="training">
+      <div class="sec-head"><span class="sec-tag">4</span><h2>训练过程</h2></div>
+      <h3>Smoke run 发现：head 的 learning rate 太大</h3>
+      <p>第一次 smoke run（20 步）里，loss 在前几步冲到了 45，而两个选项的随机猜测只应是 ln 2 ≈ 0.69。测量发现：初始化时 loss 只有 1.14，问题不在初始化；backbone 输出的 hidden state 范数约 160，pointer head 用 1e-3 的 lr 时，一次 AdamW 更新就让 2,560 维上每个权重都动 1e-3 左右，累加起来把分数推到极端。我们把 W_k 改为零初始化（初始 loss 正好 0.693），再对比两种 head lr：</p>
+      <div class="card">
+        <h3>Head lr 1e-3 时 loss 仍会冲高，1e-4 从头到尾平稳</h3>
+        <p class="note">两次 smoke run，320 条样本、20 步、5 步 warmup，W_k 都零初始化。纵轴是对数刻度。</p>
+        <div class="legend" id="smoke-legend"></div>
+        <div class="chart" id="smoke-chart"></div>
+      </div>
+      <h3>完整训练</h3>
+      <p>完整训练用时 36 分钟，显存峰值 10.2 GB，约 740 tokens/s。train loss 从 0.48 降到 0.08。下图是 train loss（每 20 步）和 validation NLL（每 200 步）：</p>
+      <div class="card">
+        <h3>Validation NLL 在 step 1000 最低，accuracy 最高的 step 800 反而 NLL 偏高</h3>
+        <p class="note">圆点是保存了 checkpoint 的评估点（NLL 创新低）。step 400 和 800 准确率上升但 NLL 上升，说明模型在答对更多题的同时，对答错的题更自信；learning rate 衰减到接近 0 后 NLL 又降下来。</p>
+        <div class="legend" id="train-legend"></div>
+        <div class="chart" id="train-chart"></div>
+      </div>
+      <div class="tbl"><table id="val-table">
+        <thead><tr><th>step</th><th class="num">val accuracy</th><th class="num">val NLL</th><th class="num">val ECE</th><th>保存</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="calibration">
+      <div class="sec-head"><span class="sec-tag">5</span><h2>Calibration（temperature scaling）</h2></div>
+      <p>在 validation 上拟合出 T=1.23，大于 1，说明训练后的模型略微过度自信。除以 T 不改变哪个选项胜出，所以 accuracy 不变：</p>
+      <div class="tbl"><table>
+        <thead><tr><th>validation</th><th class="num">accuracy</th><th class="num">NLL</th><th class="num">ECE</th><th class="num">Brier</th></tr></thead>
+        <tbody>
+          <tr><td>T=1</td><td class="num">0.958</td><td class="num">0.136</td><td class="num">0.016</td><td class="num">0.067</td></tr>
+          <tr class="ours"><td>T=1.23</td><td class="num">0.958</td><td class="num best">0.130</td><td class="num best">0.008</td><td class="num best">0.066</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="test">
+      <div class="sec-head"><span class="sec-tag">6</span><h2>Test 结果（领域内，只读一次）</h2></div>
+      <p>所有设置在 test 打开之前都已固定。Baseline 与我们的模型在同一批 848 条上比较，accuracy 差用 paired bootstrap（1,000 次）给出 95% 区间。</p>
+      <div class="tbl"><table>
+        <thead><tr><th>model</th><th class="num">accuracy</th><th class="num">NLL</th><th class="num">ECE</th><th class="num">Brier</th><th class="num">≥0.9 却答错</th><th class="num">coverage@1%</th><th class="num">order flip</th></tr></thead>
+        <tbody>
+          <tr><td>Zero-shot baseline（T=1.20）</td><td class="num">0.905</td><td class="num">0.236</td><td class="num">0.024</td><td class="num">0.140</td><td class="num">2.2%</td><td class="num">42.7%</td><td class="num">2.0%</td></tr>
+          <tr><td>Ours（T=1）</td><td class="num">0.956</td><td class="num">0.127</td><td class="num">0.021</td><td class="num">0.071</td><td class="num">2.4%</td><td class="num">85.7%</td><td class="num">0.35%</td></tr>
+          <tr class="ours"><td>Ours（T=1.23）</td><td class="num best">0.956</td><td class="num best">0.123</td><td class="num best">0.016</td><td class="num best">0.069</td><td class="num best">1.7%</td><td class="num best">85.7%</td><td class="num best">0.35%</td></tr>
+        </tbody>
+      </table></div>
+      <div class="card">
+        <h3>领域内明显变好，领域外略变差</h3>
+        <p class="note">点是 accuracy，横线是我们的模型相对 baseline 的差及其 95% 区间（paired bootstrap），右侧标注。</p>
+        <div class="legend" id="cmp-legend"></div>
+        <div class="chart" id="cmp-chart"></div>
+      </div>
+      <ul class="plain">
+        <li><b>Recall：</b>negative 0.934 → 0.977，positive 0.885 → 0.942，两类都提高。</li>
+        <li><b>Coverage@1%：</b>按把握从高到低只自动处理一部分评论，要求错误率不超过 1% 时，最多能处理 85.7%（baseline 42.7%）。错误率要求放宽到 5% 时，我们的模型可以全部自动处理，因为总错误率只有 4.4%。</li>
+        <li><b>Order flip：</b>训练时随机交换选项顺序起了作用，交换后答案改变的比例从 2.0% 降到 0.35%。</li>
+        <li><b>互补性：</b>848 条里，只有我们答对的 48 条，只有 baseline 答对的 4 条。</li>
+      </ul>
+      <div class="card">
+        <h3>三个领域都提高，酒店评论最难</h3>
+        <p class="note">每行两个点：灰色 baseline，紫色 ours；连线绿色表示提高，红色表示下降。按关键词粗分领域（"mixed"同时提到几个领域，"unclear"分不出来）。括号里是评论数。</p>
+        <div class="legend" id="dom-legend"></div>
+        <div class="chart" id="dom-chart"></div>
+      </div>
+      <div class="card">
+        <h3>Calibration 能迁移到 test：说 98% 把握的评论，实际 99% 答对</h3>
+        <p class="note">Reliability diagram：横轴是平均把握，纵轴是实际准确率，点的大小表示评论数，对角线是完美校准。左边是 ChnSentiCorp test，右边是外卖 OOD；都用 T=1.23。把握低于 0.85 的桶评论很少，波动大。</p>
+        <div class="legend" id="rel-legend"></div>
+        <div class="chart" id="rel-chart"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="ood">
+      <div class="sec-head"><span class="sec-tag">7</span><h2>Out-of-domain：外卖评论</h2></div>
+      <p>数据是 <code>XiangPan/waimai_10k</code> @ <code>dbb12540</code> 的原始 CSV（Hub 上的 parquet 副本是乱码，没用）。同样删掉标签矛盾的 14 行，剩 11,973 条：negative 7,980，positive 3,993。与 ChnSentiCorp train 没有重复。两个模型都沿用 ChnSentiCorp validation 上定好的 T，外卖数据上没有重新拟合任何东西。</p>
+      <div class="tbl"><table>
+        <thead><tr><th>model</th><th class="num">accuracy</th><th class="num">NLL</th><th class="num">ECE</th><th class="num">≥0.9 却答错</th><th class="num">coverage@5%</th><th class="num">recall neg / pos</th><th class="num">order flip</th></tr></thead>
+        <tbody>
+          <tr><td>Zero-shot baseline（T=1.20）</td><td class="num best">0.899</td><td class="num best">0.268</td><td class="num best">0.007</td><td class="num best">2.9%</td><td class="num best">79.2%</td><td class="num">0.929 / 0.841</td><td class="num">2.6%</td></tr>
+          <tr><td>Ours（T=1）</td><td class="num">0.886</td><td class="num">0.327</td><td class="num">0.048</td><td class="num">5.5%</td><td class="num">67.5%</td><td class="num">0.890 / 0.879</td><td class="num" rowspan="2">0.9%</td></tr>
+          <tr class="ours"><td>Ours（T=1.23）</td><td class="num">0.886</td><td class="num">0.308</td><td class="num">0.023</td><td class="num">4.0%</td><td class="num">67.5%</td><td class="num">0.890 / 0.879</td></tr>
+        </tbody>
+      </table></div>
+      <div class="warn"><b>结论：</b>在外卖评论上，我们的模型 accuracy 比 baseline 低 1.3 个百分点（95% CI [−1.8, −0.9]，不含 0），校准也更差（ECE 0.023 vs 0.007）。只在一个领域上训练，让模型更专门化，换到新领域时不如 base model 稳。</div>
+      <h3>为什么会变差</h3>
+      <div class="card">
+        <h3>外卖评论很短，短评论上我们的模型不如 baseline</h3>
+        <p class="note">按 token 长度分桶的 accuracy，每行两个点：灰色 baseline，紫色 ours；连线红色表示我们的模型更差。外卖数据有 47% 不超过 10 个 token，而 ChnSentiCorp test 里这样短的只有 3 条（图中省略）。超过 100 个 token 的外卖评论只有 58 条。</p>
+        <div class="legend" id="len-legend"></div>
+        <div class="chart" id="len-chart"></div>
+      </div>
+      <ul class="plain">
+        <li><b>长度分布不同：</b>ChnSentiCorp 评论 token 中位数 46，外卖只有 11。模型几乎没见过"送餐很快"这种一句话的评论。在 31–100 token 的外卖评论上，差距也存在（0.937 vs 0.957），所以长度不是唯一原因。</li>
+        <li><b>正负比例不同：</b>外卖只有 33% 是正面，训练集是 53%。我们的模型在外卖上预测正面 36.7%，baseline 32.8%，更接近真实的 33.4%。negative recall 从 0.929 掉到 0.890，正是多判了正面造成的。</li>
+        <li><b>领域词汇不同：</b>"送餐""配送费""分量"这类外卖特有的说法，训练数据里基本没有。</li>
+        <li><b>外卖数据本身也有噪声：</b>两个模型都以 ≥90% 的把握否定标签的评论有 244 条（2.0%），例如"配送费越来越贵！！！！"被标成 positive。去掉这些后两者是 0.904 vs 0.918，差距依旧。</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="errors">
+      <div class="sec-head"><span class="sec-tag">8</span><h2>错误分析</h2></div>
+      <p>Test 上一共 37 个错误。按模型把握从高到低排，最前面的大多是<b>标签标反了</b>，少数是反讽和褒贬混合。两个模型都以 ≥90% 的把握否定标签的 test 评论有 8 条（0.9%）；去掉它们，我们的模型 accuracy 是 0.965，baseline 0.913。</p>
+      <div class="errs" id="err-list"></div>
+      <p class="small muted">每条下方是数据里的标签、模型给这个标签的概率，以及我的判断。判断是人工阅读得出的，没有第二个人复核。</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="serving">
+      <div class="sec-head"><span class="sec-tag">9</span><h2>Serving</h2></div>
+      <p><code>serve.py</code> 启动时加载 base model，把 LoRA merge 进权重，再加载 pointer head 和 T=1.23。在 4090 上单条请求延迟中位数 70 ms（p90 99 ms，30 次请求；第一次请求预热 0.96 s）。</p>
+<pre><code>POST /v1/sentiment  {"text": "房间很干净，前台服务也很热情，下次还会再来。"}
+→ {"label": "positive", "probabilities": {"negative": 0.0112, "positive": 0.9888}, "confidence": 0.9777, "latency_ms": 69.6}
+
+POST /v1/sentiment  {"text": "住这个酒店实在是太享受了，还可以免费听隔壁 KTV 的高音演奏。"}
+→ {"label": "positive", "probabilities": {"negative": 0.0422, "positive": 0.9578}, ...}     ← 反讽，判错了</code></pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="conclusion">
+      <div class="sec-head"><span class="sec-tag">10</span><h2>结论与下一步</h2></div>
+      <ul class="plain">
+        <li><b>领域内：</b>36 分钟、33.8M 个可训练参数的 LoRA + pointer head post-training，把 test accuracy 从 0.905 提到 0.956，NLL 减半，可在 1% 错误率内自动处理的比例翻倍。这是本次实验最主要的结果。</li>
+        <li><b>领域外：</b>同一个模型在外卖评论上比 base model 差 1.3 个百分点，校准也变差。如果实际要处理的评论和训练数据不一样，直接用 base model 的 zero-shot 读法可能更稳。</li>
+        <li><b>数据：</b>原始 ChnSentiCorp 切分的 leakage 和标签噪声都很明显，用它报告的准确率需要谨慎解读。</li>
+      </ul>
+      <h3>局限</h3>
+      <ul class="plain">
+        <li>只跑了一个 seed，没有做 hyperparameter search；结果的波动范围只能从 bootstrap 区间粗略估计。</li>
+        <li>领域划分和"标签错误"的判断都是关键词和人工阅读，不严格。</li>
+        <li>外卖评论只用来测，没有用来调任何设置，这是有意的；但也因此不知道少量外卖数据能弥补多少差距。</li>
+      </ul>
+      <h3>下一步可以试</h3>
+      <ol class="plain">
+        <li><b>混入短评论和其他领域的数据</b>（例如一小部分外卖或微博评论）一起训练，再看领域外的表现。</li>
+        <li><b>减少对 base model 的改动：</b>只训练 1 个 epoch、更小的 LoRA rank，或用 KL 约束让输出别离 base model 的 zero-shot 分布太远，看能否保住领域外的能力。</li>
+        <li><b>清洗标签：</b>把两个模型都高置信否定标签的样本拿出来人工复核，重新评估。</li>
+        <li><b>多跑几个 seed</b>，确认 +5.2 和 −1.3 这两个差距的稳定性。</li>
+      </ol>
+    </section>
+
+    <section id="repro">
+      <div class="sec-head"><span class="sec-tag">··</span><h2>复现</h2></div>
+      <p>代码在 <code>G:\dev\repo\xev\sentiment</code>，在 WSL 里先 <code>source env.sh</code>：</p>
+<pre><code>uv sync
+uv run python prepare_data.py                     # Step 1
+uv run python baseline.py --split validation      # Step 2
+uv run python train.py --out runs/main            # Step 4（36 分钟）
+uv run python calibrate.py --run runs/main        # Step 5
+uv run python baseline.py --split test --temperature 1.2030
+uv run python evaluate.py --run runs/main         # Step 6
+uv run python prepare_ood.py && uv run python baseline.py --split waimai --temperature 1.2030 \
+  && uv run python evaluate.py --run runs/main --split waimai
+uv run python tools/analyze.py
+uv run uvicorn serve:app --port 8010              # Step 7</code></pre>
+      <p class="small muted">结果文件：<code>runs/main/{eval_test,eval_waimai,calibration,analysis,summary}.json</code>、<code>runs/main/train_log.jsonl</code>、<code>runs/baseline/*.json</code>。</p>
+    </section>
+
+    <footer>
+      <p>本页所有数字来自上述结果文件（嵌在页面里）。训练只跑了一个 seed（0）。</p>
+      <p>计划书：<a href="plan.html">xev-sentiment 训练计划</a> · 代码：<a href="https://github.com/CdyDoodle/xev/tree/main/sentiment">github.com/CdyDoodle/xev/sentiment</a> · 原理讲解：<a href="../index.html">Kev 的概率从哪来</a></p><p>例子中引用的评论来自 ChnSentiCorp 和 waimai_10k，仅作分析之用，数据本身不在本仓库里。</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+const R = {"data": {"conflicting_texts": 36, "train": {"kept": 8213, "dropped": {"empty": 0, "conflict": 70, "duplicate": 1317, "in_train": 0}, "labels": {"negative": 3874, "positive": 4339}, "chars": {"p50": 77, "p90": 188, "p99": 523, "max": 1992}, "tokens": {"p50": 46, "p90": 113, "p99": 318, "max": 1194}}, "validation": {"kept": 843, "dropped": {"empty": 0, "conflict": 10, "duplicate": 19, "in_train": 328}, "labels": {"negative": 353, "positive": 490}, "chars": {"p50": 80, "p90": 190, "p99": 515, "max": 924}, "tokens": {"p50": 49, "p90": 116, "p99": 327, "max": 551}}, "test": {"kept": 848, "dropped": {"empty": 0, "conflict": 7, "duplicate": 21, "in_train": 324}, "labels": {"negative": 346, "positive": 502}, "chars": {"p50": 77, "p90": 188, "p99": 443, "max": 778}, "tokens": {"p50": 46, "p90": 111, "p99": 270, "max": 467}}}, "waimai_data": {"waimai": {"kept": 11973, "dropped": {"empty": 0, "conflict": 14, "duplicate": 0, "in_train": 0}, "labels": {"negative": 7980, "positive": 3993}, "chars": {"p50": 17, "p90": 50, "p99": 126, "max": 463}, "tokens": {"p50": 11, "p90": 33, "p99": 82, "max": 296}}, "conflicting_texts": 7, "source": "XiangPan/waimai_10k@dbb125403842b8924d864f09f1c0eb357bd57435"}, "baseline_val": {"raw": {"accuracy": 0.8920521945432978, "nll": 0.26866518474473977, "brier": 0.16184335791847468, "ece": 0.03125396280621599, "confident_error": 0.03795966785290629, "coverage_5": 0.7912218268090154, "coverage_1": 0.5124555160142349, "recall_negative": 0.9376770538243626, "recall_positive": 0.8591836734693877, "mean_confidence": 0.921930758782696}, "calibrated": {"accuracy": 0.8920521945432978, "nll": 0.2631964807040655, "brier": 0.1588416247594821, "ece": 0.018549601262245925, "confident_error": 0.02491103202846975, "coverage_5": 0.7912218268090154, "coverage_1": 0.5124555160142349, "recall_negative": 0.9376770538243626, "recall_positive": 0.8591836734693877, "mean_confidence": 0.9003017226349667}}, "baseline_val_flip": 0.02609727164887307, "baseline_val_T": 1.2030250360821164, "train_loss": [{"step": 20, "loss": 0.4768, "acc": 0.7656}, {"step": 40, "loss": 0.3324, "acc": 0.9}, {"step": 60, "loss": 0.3827, "acc": 0.8844}, {"step": 80, "loss": 0.3847, "acc": 0.9094}, {"step": 100, "loss": 0.3049, "acc": 0.9062}, {"step": 120, "loss": 0.3006, "acc": 0.925}, {"step": 140, "loss": 0.2986, "acc": 0.9062}, {"step": 160, "loss": 0.2959, "acc": 0.9062}, {"step": 180, "loss": 0.1898, "acc": 0.9563}, {"step": 200, "loss": 0.1899, "acc": 0.9406}, {"step": 220, "loss": 0.2351, "acc": 0.9094}, {"step": 240, "loss": 0.2353, "acc": 0.9313}, {"step": 260, "loss": 0.2759, "acc": 0.9313}, {"step": 280, "loss": 0.2363, "acc": 0.9187}, {"step": 300, "loss": 0.1747, "acc": 0.9469}, {"step": 320, "loss": 0.2311, "acc": 0.9469}, {"step": 340, "loss": 0.2048, "acc": 0.9469}, {"step": 360, "loss": 0.2047, "acc": 0.9406}, {"step": 380, "loss": 0.2552, "acc": 0.9156}, {"step": 400, "loss": 0.2376, "acc": 0.9156}, {"step": 420, "loss": 0.208, "acc": 0.9344}, {"step": 440, "loss": 0.2583, "acc": 0.9313}, {"step": 460, "loss": 0.1636, "acc": 0.9437}, {"step": 480, "loss": 0.2651, "acc": 0.925}, {"step": 500, "loss": 0.1728, "acc": 0.95}, {"step": 520, "loss": 0.2078, "acc": 0.9417}, {"step": 540, "loss": 0.2127, "acc": 0.9688}, {"step": 560, "loss": 0.1045, "acc": 0.975}, {"step": 580, "loss": 0.0522, "acc": 0.9875}, {"step": 600, "loss": 0.1602, "acc": 0.9625}, {"step": 620, "loss": 0.0772, "acc": 0.9781}, {"step": 640, "loss": 0.1967, "acc": 0.9469}, {"step": 660, "loss": 0.0708, "acc": 0.9844}, {"step": 680, "loss": 0.1791, "acc": 0.9531}, {"step": 700, "loss": 0.0976, "acc": 0.975}, {"step": 720, "loss": 0.1522, "acc": 0.9563}, {"step": 740, "loss": 0.1236, "acc": 0.9688}, {"step": 760, "loss": 0.0685, "acc": 0.9844}, {"step": 780, "loss": 0.0374, "acc": 0.9875}, {"step": 800, "loss": 0.1183, "acc": 0.9719}, {"step": 820, "loss": 0.2144, "acc": 0.95}, {"step": 840, "loss": 0.0695, "acc": 0.9844}, {"step": 860, "loss": 0.0837, "acc": 0.9688}, {"step": 880, "loss": 0.0814, "acc": 0.9781}, {"step": 900, "loss": 0.1543, "acc": 0.9531}, {"step": 920, "loss": 0.0663, "acc": 0.9844}, {"step": 940, "loss": 0.1076, "acc": 0.9656}, {"step": 960, "loss": 0.1392, "acc": 0.95}, {"step": 980, "loss": 0.0875, "acc": 0.9719}, {"step": 1000, "loss": 0.1065, "acc": 0.9688}, {"step": 1020, "loss": 0.0622, "acc": 0.9781}, {"step": 1028, "loss": 0.08, "acc": 0.9744}], "val": [{"step": 200, "nll": 0.1704, "acc": 0.9383, "ece": 0.0119}, {"step": 400, "nll": 0.1765, "acc": 0.9478, "ece": 0.0247}, {"step": 600, "nll": 0.1505, "acc": 0.9502, "ece": 0.0145}, {"step": 800, "nll": 0.174, "acc": 0.9597, "ece": 0.0282}, {"step": 1000, "nll": 0.1358, "acc": 0.9585, "ece": 0.0154}, {"step": 1028, "nll": 0.1359, "acc": 0.9585, "ece": 0.0159}], "summary": {"best_val_nll": 0.1358192598912996, "steps": 1028, "minutes": 35.74797395467758, "peak_mem_gb": 10.204248428344727}, "config": {"out": "runs/main", "epochs": 2, "lr": 0.0001, "head_lr": 0.0001, "weight_decay": 0.01, "micro": 4, "accum": 4, "warmup": 0.05, "clip": 1.0, "p_swap": 0.5, "eval_every": 200, "log_every": 20, "limit": null, "val_limit": null, "max_steps": null, "seed": 0, "zero_init_head": 1, "train_rows": 8213, "val_rows": 843, "total_steps": 1028, "warmup_steps": 51, "max_text_tokens": 384, "train_sha256": "25077b8ff3ddfa3c98d96f2b8a6c86c3b4017fc14e0ec164af6b1e0c7a818ccf"}, "calibration": {"T": 1.2311444133449163, "raw": {"accuracy": 0.9584816132858838, "nll": 0.13589906140408178, "brier": 0.06697440904534363, "ece": 0.01571908289456001, "confident_error": 0.020166073546856466, "coverage_5": 1.0, "coverage_1": 0.66785290628707, "recall_negative": 0.9688385269121813, "recall_positive": 0.9510204081632653, "mean_confidence": 0.9738255180584843}, "calibrated": {"accuracy": 0.9584816132858838, "nll": 0.13026025158897098, "brier": 0.06616842664799531, "ece": 0.007732007135520707, "confident_error": 0.017793594306049824, "coverage_5": 1.0, "coverage_1": 0.66785290628707, "recall_negative": 0.9688385269121813, "recall_positive": 0.9510204081632653, "mean_confidence": 0.9605461710161528}}, "smoke": {"1e-3": [{"step": 5, "train_loss": 7.472916701436043, "train_acc": 0.5, "lr": 0.0001, "tok_s": 679.1751941828434, "mem_gb": 9.280725479125977, "elapsed_min": 0.3552798231442769}, {"step": 10, "train_loss": 12.944389287888772, "train_acc": 0.625, "lr": 7.500000000000001e-05, "tok_s": 777.8175504866356, "mem_gb": 9.280725479125977, "elapsed_min": 0.5217636267344157}, {"step": 15, "train_loss": 1.6284278902754523, "train_acc": 0.725, "lr": 2.500000000000001e-05, "tok_s": 711.7737288211708, "mem_gb": 9.280725479125977, "elapsed_min": 0.6974158604939779}, {"step": 20, "train_loss": 0.4983480338007212, "train_acc": 0.8125, "lr": 0.0, "tok_s": 733.8351873910879, "mem_gb": 9.282794952392578, "elapsed_min": 0.8596616864204407}, {"step": 20, "val_nll": 0.24687523063480055, "val_acc": 0.88, "val_ece": 0.04291406571865086, "saved": true}], "1e-4": [{"step": 5, "train_loss": 0.5691884160041809, "train_acc": 0.6875, "lr": 0.0001, "tok_s": 709.9262150103908, "mem_gb": 9.280725479125977, "elapsed_min": 0.2764321287473043}, {"step": 10, "train_loss": 0.38432843224145474, "train_acc": 0.8625, "lr": 7.500000000000001e-05, "tok_s": 792.0846387702638, "mem_gb": 9.280725479125977, "elapsed_min": 0.4399153749148051}, {"step": 15, "train_loss": 0.5387167545035482, "train_acc": 0.8375, "lr": 2.500000000000001e-05, "tok_s": 790.0281301621092, "mem_gb": 9.280725479125977, "elapsed_min": 0.5981690526008606}, {"step": 20, "train_loss": 0.36234746119007466, "train_acc": 0.8875, "lr": 0.0, "tok_s": 702.4210848849964, "mem_gb": 9.282794952392578, "elapsed_min": 0.7676659901936849}, {"step": 20, "val_nll": 0.24424534123240474, "val_acc": 0.9, "val_ece": 0.04983866870403291, "saved": true}]}, "test": {"T": 1.2311444133449163, "Tb": 1.2030250360821164, "baseline": {"accuracy": 0.9044811320754716, "nll": 0.2363635666912794, "brier": 0.13961092168421735, "ece": 0.023807586198404267, "confident_error": 0.02240566037735849, "coverage_5": 0.8832547169811321, "coverage_1": 0.4268867924528302, "recall_negative": 0.9335260115606936, "recall_positive": 0.8844621513944223, "mean_confidence": 0.9126012261675108}, "ours_raw": {"accuracy": 0.9563679245283019, "nll": 0.1267130814642101, "brier": 0.07123791155046147, "ece": 0.02075572721941116, "confident_error": 0.02358490566037736, "coverage_5": 1.0, "coverage_1": 0.8573113207547169, "recall_negative": 0.976878612716763, "recall_positive": 0.9422310756972112, "mean_confidence": 0.9744801666524637}, "ours": {"accuracy": 0.9563679245283019, "nll": 0.12248243155028964, "brier": 0.06900937730868208, "ece": 0.016299959433664878, "confident_error": 0.01650943396226415, "coverage_5": 1.0, "coverage_1": 0.8573113207547169, "recall_negative": 0.976878612716763, "recall_positive": 0.9422310756972112, "mean_confidence": 0.961352977943296}, "flip_ours": 0.003537735849056604, "flip_base": 0.020047169811320754, "diff": {"diff": 0.05188679245283023, "lo": 0.03537735849056611, "hi": 0.06957547169811318}, "domains": {"book": {"n": 193, "accuracy": 0.9585492227979274, "baseline_accuracy": 0.9222797927461139}, "hotel": {"n": 226, "accuracy": 0.9336283185840708, "baseline_accuracy": 0.8716814159292036}, "laptop": {"n": 261, "accuracy": 0.9885057471264368, "baseline_accuracy": 0.9310344827586207}, "mixed": {"n": 32, "accuracy": 0.96875, "baseline_accuracy": 0.90625}, "unclear": {"n": 136, "accuracy": 0.9264705882352942, "baseline_accuracy": 0.8823529411764706}}, "reliability": [{"bin": "0.50-0.55", "n": 6, "confidence": 0.5197456119843612, "accuracy": 0.5}, {"bin": "0.55-0.60", "n": 5, "confidence": 0.5754844311656248, "accuracy": 1.0}, {"bin": "0.60-0.65", "n": 1, "confidence": 0.6047181348831938, "accuracy": 0.0}, {"bin": "0.65-0.70", "n": 7, "confidence": 0.6769998231192564, "accuracy": 0.2857142857142857}, {"bin": "0.70-0.75", "n": 9, "confidence": 0.7288613554255867, "accuracy": 0.7777777777777778}, {"bin": "0.75-0.80", "n": 10, "confidence": 0.7746051387078933, "accuracy": 0.8}, {"bin": "0.80-0.85", "n": 11, "confidence": 0.8283154321062988, "accuracy": 0.7272727272727273}, {"bin": "0.85-0.90", "n": 20, "confidence": 0.8784829398972036, "accuracy": 0.65}, {"bin": "0.90-0.95", "n": 66, "confidence": 0.9323503013134714, "accuracy": 0.8787878787878788}, {"bin": "0.95-1.00", "n": 713, "confidence": 0.9836825533629048, "accuracy": 0.9915848527349228}], "errors": [{"id": "test-66", "label": "positive", "p_label": 0.028040286368475054, "domain": "hotel", "text": "住了几次，这次还特意带了朋友一起去入住，结果，酒店的早餐让我们太失望了，越来越差啊，九点去的时候吃的东西都没有什么了，以后我是不会再来了。"}, {"id": "test-12", "label": "positive", "p_label": 0.029449006719767072, "domain": "laptop", "text": "没有许多网友评价热度高的问题，第一次要手动安装winxp，主板的blis-硬盘重新设置"}, {"id": "test-461", "label": "negative", "p_label": 0.032155753767879956, "domain": "book", "text": "感动.还有锥心的悲哀.读过就再也无法忘怀.很怕被拍成影视,毁掉心中美好的人物形象.太感动"}, {"id": "test-424", "label": "positive", "p_label": 0.035797280405277666, "domain": "laptop", "text": "问题多.刚买回来光驱弹不出来,必须用针弄出来！无奈之下第二天就去了维修站拆机修了，但有事还是不灵，后来又发现待机无法唤醒！打了客服电话说要我刷主板！如拿他那修机器还拿不回来！明显主板有问题"}, {"id": "test-412", "label": "positive", "p_label": 0.04601552262954673, "domain": "hotel", "text": "不值房价，早餐太糟，也许我去的比较晚，九点左右，没东西吃"}, {"id": "test-429", "label": "positive", "p_label": 0.047428583717545214, "domain": "laptop", "text": "我在京东网买的华硕笔记本，第二天就发现严重的问题，无法使用。后来在华硕维修站的检测后发现是主板坏了，但由于检测过程中拖的时间很长时间，以至于超过15天包换期。现在，我要求换新机或者退货。你们不能卖坏掉的残次品给客户吧？！希望能给我一个明确的答复，谢谢。手机：13341772746"}, {"id": "test-877", "label": "negative", "p_label": 0.051685277167459714, "domain": "unclear", "text": "我相信自己,不论怎么做自己才是真的认真过自己的生活在二十岁十如果不能精彩的去闯荡怎么能在三十岁 四十岁 再回到二十岁的心??在什么时期 做什么时期该做的事不去比较"}, {"id": "test-581", "label": "negative", "p_label": 0.055381388775161584, "domain": "book", "text": "儿子现在两周九个月了,平时就有玩?下蛋游戏?,这回拿到的书,不仅看到?下蛋游戏?,还有?钓鱼游戏?等等,每天一看到我就抓我说,妈妈,我们一起到外面钓鱼去吧~要不,?妈妈,我下了个很大的蛋哦,我有个大屁股,哈哈,给你吃,我狂晕~?不过从内心上非常感动,儿子,自己懂得自娱自乐了,有时还会带领他的小伙伴们做游戏,当然,他就是老大,嘻!"}, {"id": "test-444", "label": "negative", "p_label": 0.06172104699803312, "domain": "unclear", "text": "条件一般，就是地理位置不错，离市中心比较近，出行还比较方便。"}, {"id": "test-134", "label": "positive", "p_label": 0.0627802346802881, "domain": "book", "text": "书已收到，貌似觉得字有点小，哎，可惜了书里的内容几乎和网上看到的一样，嘿嘿，原以为还可以和良言写意一样多点番外的内容呢，哈哈"}, {"id": "test-560", "label": "positive", "p_label": 0.06452941455948989, "domain": "hotel", "text": "酒店硬件和位置都好,但服务令人生气.12日大地震这一天,我通过携程入住了这酒店.第二天,因为办事延误了,没有来得及退房.下午携程问是否要退?但因已经过了十二点,我们要求延住,结果被告知二间房房价涨40元和50元了,说是星期一是特价,星期二取消特价了.我说我们连同住了两天应该是同一价,但酒店后来说,如果当时通过携程预订,住两天也是两个价的.如果退房的话,要收半天的费,还说三星以上宾馆加收10%服务费"}, {"id": "test-710", "label": "positive", "p_label": 0.06583436891260053, "domain": "hotel", "text": "酒店位于昆明中心区,地理位置不错,可惜酒店服务有些差,第一天晚上可能入住的客人不多,空调根本没开,打了电话问,说是中央空调要晚上统一开,结果晚上也没开,就热了一晚上,第二天有开会的入住,晚上就有了空调,不得不说酒店经济帐作的好.房间的床太硬,睡的不好.酒店的早餐就如其他人评价一样,想法的难吃. 不过携程的预订价钱还不错."}], "analysis": {"n": 848, "by_length": [{"tokens": "0-10", "n": 3, "ours": 1.0, "baseline": 1.0}, {"tokens": "11-30", "n": 265, "ours": 0.9584905660377359, "baseline": 0.8943396226415095}, {"tokens": "31-100", "n": 420, "ours": 0.95, "baseline": 0.9023809523809524}, {"tokens": ">100", "n": 160, "ours": 0.96875, "baseline": 0.925}], "both_confidently_contradict_label": 8, "both_contradict_share": 0.009433962264150943, "accuracy_excluding_those": {"ours": 0.9654761904761905, "baseline": 0.9130952380952381}, "true_positive_rate": 0.5919811320754716, "predicted_positive_rate": {"ours": 0.5672169811320755, "baseline": 0.5507075471698113}, "models_agree": 0.9386792452830188, "only_ours_right": 48, "only_baseline_right": 4}}, "waimai": {"T": 1.2311444133449163, "Tb": 1.2030250360821164, "baseline": {"accuracy": 0.8993568863275704, "nll": 0.2676613473612904, "brier": 0.15479073440903637, "ece": 0.0066519461191568725, "confident_error": 0.02881483337509396, "coverage_5": 0.7918650296500459, "coverage_1": 0.0022550739163117012, "recall_negative": 0.9288220551378447, "recall_positive": 0.8404708239418983, "mean_confidence": 0.9026949515363325}, "ours_raw": {"accuracy": 0.8859934853420195, "nll": 0.326617456302823, "brier": 0.1843252805075588, "ece": 0.047488257117167205, "confident_error": 0.05520755032155684, "coverage_5": 0.6748517497703166, "coverage_1": 0.010273114507642195, "recall_negative": 0.8895989974937344, "recall_positive": 0.8787878787878788, "mean_confidence": 0.932864568364225}, "ours": {"accuracy": 0.8859934853420195, "nll": 0.3078694812977544, "brier": 0.17969389802040658, "ece": 0.02259468149970309, "confident_error": 0.03992316044433308, "coverage_5": 0.6748517497703166, "coverage_1": 0.010273114507642195, "recall_negative": 0.8895989974937344, "recall_positive": 0.8787878787878788, "mean_confidence": 0.9076666376384083}, "flip_ours": 0.009020295665246805, "flip_base": 0.025724546897185334, "diff": {"diff": -0.013363400985550888, "lo": -0.018126200618057354, "hi": -0.008851165121523407}, "domains": {"book": {"n": 6, "accuracy": 0.8333333333333334, "baseline_accuracy": 1.0}, "hotel": {"n": 27, "accuracy": 1.0, "baseline_accuracy": 0.9629629629629629}, "laptop": {"n": 36, "accuracy": 0.9722222222222222, "baseline_accuracy": 1.0}, "unclear": {"n": 11904, "accuracy": 0.8855006720430108, "baseline_accuracy": 0.8988575268817204}}, "reliability": [{"bin": "0.50-0.55", "n": 170, "confidence": 0.5227077115021117, "accuracy": 0.5705882352941176}, {"bin": "0.55-0.60", "n": 196, "confidence": 0.5746069105561163, "accuracy": 0.5612244897959183}, {"bin": "0.60-0.65", "n": 201, "confidence": 0.6251683501427066, "accuracy": 0.582089552238806}, {"bin": "0.65-0.70", "n": 229, "confidence": 0.676609304182252, "accuracy": 0.6550218340611353}, {"bin": "0.70-0.75", "n": 297, "confidence": 0.7252581987633697, "accuracy": 0.6801346801346801}, {"bin": "0.75-0.80", "n": 378, "confidence": 0.7764935623603623, "accuracy": 0.6931216931216931}, {"bin": "0.80-0.85", "n": 642, "confidence": 0.8260413890980371, "accuracy": 0.778816199376947}, {"bin": "0.85-0.90", "n": 1180, "confidence": 0.8775003061212208, "accuracy": 0.8203389830508474}, {"bin": "0.90-0.95", "n": 2915, "confidence": 0.9297726573301085, "accuracy": 0.9104631217838765}, {"bin": "0.95-1.00", "n": 5765, "confidence": 0.9714543863378491, "accuracy": 0.9623590633130963}], "errors": [], "analysis": {"n": 11973, "by_length": [{"tokens": "0-10", "n": 5680, "ours": 0.8737676056338028, "baseline": 0.8811619718309859}, {"tokens": "11-30", "n": 4907, "ours": 0.8856735276136132, "baseline": 0.9044222539229672}, {"tokens": "31-100", "n": 1328, "ours": 0.9367469879518072, "baseline": 0.9570783132530121}, {"tokens": ">100", "n": 58, "ours": 0.9482758620689655, "baseline": 0.9310344827586207}], "both_confidently_contradict_label": 244, "both_contradict_share": 0.020379186502965004, "accuracy_excluding_those": {"ours": 0.9044249296615228, "baseline": 0.9180663313155427}, "true_positive_rate": 0.33350037584565273, "predicted_positive_rate": {"ours": 0.3666583145410507, "baseline": 0.32773740917063393}, "models_agree": 0.9320136974860102, "only_ours_right": 327, "only_baseline_right": 487}}};
+(function () {
+  "use strict";
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = "http://www.w3.org/2000/svg";
+  const S = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const T = (parent, x, y, text, attrs) => { const e = S("text", Object.assign({ x, y, fill: css("--muted"), "font-size": 11.5, "font-family": css("--f-body") }, attrs || {}), parent); e.textContent = text; return e; };
+  const f3 = (v) => v.toFixed(3), pct = (v) => (v * 100).toFixed(1) + "%";
+  function legend(id, items) { const el = document.getElementById(id); el.textContent = ""; items.forEach(([name, color]) => { const s = document.createElement("span"); const sw = document.createElement("i"); sw.className = "sw"; sw.style.background = color; s.appendChild(sw); s.appendChild(document.createTextNode(name)); el.appendChild(s); }); }
+  function tipper(box) {
+    const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; box.appendChild(tip);
+    return { show(ev, lines) { tip.textContent = ""; lines.forEach((l, i) => { const d = document.createElement("div"); if (i === 0) d.className = "t"; d.textContent = l; tip.appendChild(d); }); tip.hidden = false; const r = box.getBoundingClientRect(); let x = ev.clientX - r.left + 12, y = ev.clientY - r.top - 10; x = Math.min(x, r.width - tip.offsetWidth - 4); tip.style.left = Math.max(0, x) + "px"; tip.style.top = Math.max(0, y - tip.offsetHeight) + "px"; }, hide() { tip.hidden = true; } };
+  }
+  function frame(id, H) { const box = document.getElementById(id); box.textContent = ""; const W = Math.max(300, box.clientWidth); const svg = S("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, box); return { box, svg, W, H }; }
+  function linScale(d0, d1, r0, r1) { return (v) => r0 + (v - d0) / (d1 - d0) * (r1 - r0); }
+
+  /* ---------- data table and validation table ---------- */
+  (() => {
+    const tb = document.querySelector("#data-table tbody");
+    ["train", "validation", "test"].forEach((s) => {
+      const v = R.data[s], d = v.dropped, tr = tb.insertRow();
+      [s, v.kept + d.conflict + d.duplicate + d.in_train + d.empty, d.conflict, d.duplicate, d.in_train, v.kept, v.labels.negative, v.labels.positive, `${v.tokens.p50} / ${v.tokens.p99}`]
+        .forEach((x, i) => { const td = tr.insertCell(); td.textContent = typeof x === "number" ? x.toLocaleString("en") : x; if (i) td.className = "num"; });
+    });
+    const vb = document.querySelector("#val-table tbody");
+    let best = Infinity;
+    R.val.forEach((r) => { const saved = r.nll < best; if (saved) best = r.nll; const tr = vb.insertRow(); [r.step, f3(r.acc), f3(r.nll), f3(r.ece), saved ? "✓" : ""].forEach((x, i) => { const td = tr.insertCell(); td.textContent = x; if (i && i < 4) td.className = "num"; }); });
+  })();
+
+  /* ---------- line chart helper ---------- */
+  function lineChart(id, series, opts) {
+    const { box, svg, W, H } = frame(id, opts.H || 240);
+    const tip = tipper(box);
+    const all = series.flatMap((s) => s.pts);
+    const xs = all.map((p) => p.x), ys = all.map((p) => p.y);
+    const xMin = opts.xMin ?? Math.min(...xs), xMax = opts.xMax ?? Math.max(...xs);
+    const tf = opts.log ? Math.log10 : (v) => v;
+    const yMin = opts.log ? Math.log10(opts.yMin) : (opts.yMin ?? 0), yMax = opts.log ? Math.log10(opts.yMax) : (opts.yMax ?? Math.max(...ys) * 1.1);
+    const m = { l: 48, r: opts.r || 110, t: 12, b: 30 };
+    const x = linScale(xMin, xMax, m.l, W - m.r), y = (v) => linScale(yMin, yMax, H - m.b, m.t)(tf(v));
+    (opts.yTicks).forEach((v) => { S("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: css("--line-2") }, svg); T(svg, m.l - 6, y(v) + 4, opts.yFmt ? opts.yFmt(v) : String(v), { "text-anchor": "end" }); });
+    S("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: css("--muted") }, svg);
+    opts.xTicks.forEach((v) => T(svg, x(v), H - m.b + 16, v.toLocaleString("en"), { "text-anchor": "middle" }));
+    T(svg, (m.l + W - m.r) / 2, H - 2, opts.xLabel, { "text-anchor": "middle", "font-size": 11 });
+    const labelYs = [];
+    series.forEach((s) => {
+      const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)},${y(p.y).toFixed(1)}`).join("");
+      S("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      (s.marks || []).forEach((p) => S("circle", { cx: x(p.x), cy: y(p.y), r: 4.5, fill: s.color, stroke: css("--panel"), "stroke-width": 2 }, svg));
+      const last = s.pts[s.pts.length - 1];
+      let ly = y(last.y) + 4; labelYs.forEach((o) => { if (Math.abs(o - ly) < 14) ly = o + 14; }); labelYs.push(ly);
+      T(svg, x(last.x) + 8, ly, `${s.name} ${opts.endFmt(last.y)}`, { fill: css("--ink") });
+    });
+    const rule = S("line", { y1: m.t, y2: H - m.b, stroke: css("--muted"), "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+    const hit = S("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (ev) => {
+      const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width, sx = xMin + (px - m.l) / (W - m.l - m.r) * (xMax - xMin);
+      rule.setAttribute("x1", px); rule.setAttribute("x2", px); rule.setAttribute("visibility", "visible");
+      const lines = [`${opts.xLabel} ${Math.round(sx).toLocaleString("en")}`];
+      series.forEach((s) => { const p = s.pts.reduce((a, b) => Math.abs(b.x - sx) < Math.abs(a.x - sx) ? b : a); lines.push(`${s.name}：${opts.endFmt(p.y)}（${opts.xLabel} ${p.x}）`); });
+      tip.show(ev, lines);
+    });
+    hit.addEventListener("mouseleave", () => { rule.setAttribute("visibility", "hidden"); tip.hide(); });
+  }
+
+  /* ---------- dot plot helper: baseline vs ours per row, a line between them ---------- */
+  function barChart(id, groups, opts) {
+    const rowH = 34, H = groups.length * rowH + 34;
+    const { box, svg, W } = frame(id, H);
+    const tip = tipper(box);
+    const m = { l: opts.l || 120, r: 24, t: 10 };
+    const x = linScale(opts.xMin, opts.xMax, m.l, W - m.r);
+    opts.xTicks.forEach((v) => { S("line", { x1: x(v), x2: x(v), y1: m.t, y2: H - 24, stroke: css("--line-2") }, svg); T(svg, x(v), H - 8, opts.fmt(v), { "text-anchor": "middle" }); });
+    groups.forEach((g, gi) => {
+      const y = m.t + gi * rowH + rowH / 2;
+      T(svg, m.l - 10, y + 4, g.label, { "text-anchor": "end", fill: css("--ink"), "font-size": 12 });
+      const [b, o] = g.bars, up = o.v >= b.v;
+      S("line", { x1: x(b.v), x2: x(o.v), y1: y, y2: y, stroke: up ? css("--good") : css("--bad"), "stroke-width": 3 }, svg);
+      [b, o].forEach((d) => {
+        const dot = S("circle", { cx: x(d.v), cy: y, r: 6.5, fill: d.color, stroke: css("--panel"), "stroke-width": 2 }, svg);
+        dot.addEventListener("mousemove", (ev) => tip.show(ev, [g.label, `${b.name}：${opts.fmt(b.v)}`, `${o.name}：${opts.fmt(o.v)}`]));
+        dot.addEventListener("mouseleave", () => tip.hide());
+      });
+      const lo = up ? b : o, hi = up ? o : b;
+      T(svg, x(lo.v) - 10, y + 4, opts.fmt(lo.v), { "text-anchor": "end", fill: css("--ink-2") });
+      T(svg, x(hi.v) + 10, y + 4, opts.fmt(hi.v), { fill: css("--ink-2") });
+    });
+  }
+
+  const OURS = css("--ours"), BASE = css("--base");
+  function draw() {
+    /* smoke */
+    const sm = (h) => R.smoke[h].filter((r) => r.train_loss != null).map((r) => ({ x: r.step, y: r.train_loss }));
+    legend("smoke-legend", [["head lr 1e-3", css("--bad")], ["head lr 1e-4", OURS]]);
+    lineChart("smoke-chart", [{ name: "lr 1e-3", color: css("--bad"), pts: sm("1e-3") }, { name: "lr 1e-4", color: OURS, pts: sm("1e-4") }],
+      { log: true, yMin: 0.2, yMax: 20, yTicks: [0.3, 1, 3, 10], xTicks: [5, 10, 15, 20], xMin: 5, xMax: 20, xLabel: "step", endFmt: (v) => v.toFixed(2), H: 220 });
+    /* training */
+    let best = Infinity; const marks = R.val.filter((r) => { const s = r.nll < best; if (s) best = r.nll; return s; }).map((r) => ({ x: r.step, y: r.nll }));
+    legend("train-legend", [["train loss（每 20 步）", BASE], ["validation NLL（每 200 步）", OURS]]);
+    lineChart("train-chart", [{ name: "train loss", color: BASE, pts: R.train_loss.map((r) => ({ x: r.step, y: r.loss })) },
+                              { name: "val NLL", color: OURS, pts: R.val.map((r) => ({ x: r.step, y: r.nll })), marks }],
+      { yMin: 0, yMax: 0.5, yTicks: [0, 0.1, 0.2, 0.3, 0.4, 0.5], xTicks: [0, 200, 400, 600, 800, 1000], xMin: 0, xMax: 1028, xLabel: "step", endFmt: (v) => v.toFixed(3), H: 250 });
+    /* comparison */
+    legend("cmp-legend", [["Zero-shot baseline", BASE], ["Ours（T=1.23）", OURS]]);
+    (function cmp() {
+      const rows = [["ChnSentiCorp test（848）", R.test], ["外卖 OOD（11,973）", R.waimai]];
+      const H = 150, { box, svg, W } = frame("cmp-chart", H), tip = tipper(box);
+      const m = { l: 150, r: 150 }, x = linScale(0.86, 0.98, m.l, W - m.r);
+      [0.86, 0.9, 0.94, 0.98].forEach((v) => { S("line", { x1: x(v), x2: x(v), y1: 10, y2: H - 26, stroke: css("--line-2") }, svg); T(svg, x(v), H - 8, v.toFixed(2), { "text-anchor": "middle" }); });
+      rows.forEach(([label, d], i) => {
+        const y = 36 + i * 56, b = d.baseline.accuracy, o = d.ours.accuracy, up = o > b;
+        T(svg, m.l - 10, y + 4, label, { "text-anchor": "end", fill: css("--ink"), "font-size": 12 });
+        S("line", { x1: x(b), x2: x(o), y1: y, y2: y, stroke: up ? css("--good") : css("--bad"), "stroke-width": 3 }, svg);
+        [[b, BASE, "baseline"], [o, OURS, "ours"]].forEach(([v, c, n]) => { const dot = S("circle", { cx: x(v), cy: y, r: 7, fill: c, stroke: css("--panel"), "stroke-width": 2 }, svg); dot.addEventListener("mousemove", (ev) => tip.show(ev, [label, `${n}：${f3(v)}`])); dot.addEventListener("mouseleave", () => tip.hide()); });
+        const dd = d.diff; T(svg, W - m.r + 12, y + 4, `${dd.diff > 0 ? "+" : ""}${(dd.diff * 100).toFixed(1)} pp [${(dd.lo * 100).toFixed(1)}, ${(dd.hi * 100).toFixed(1)}]`, { fill: up ? css("--good") : css("--bad"), "font-size": 12 });
+      });
+    })();
+    /* domains */
+    const DN = { laptop: "电脑", book: "书籍", hotel: "酒店", mixed: "mixed", unclear: "unclear" };
+    legend("dom-legend", [["Zero-shot baseline", BASE], ["Ours", OURS]]);
+    barChart("dom-chart", ["laptop", "book", "hotel", "mixed", "unclear"].map((k) => ({ label: `${DN[k]}（${R.test.domains[k].n}）`,
+      bars: [{ name: "baseline", v: R.test.domains[k].baseline_accuracy, color: BASE }, { name: "ours", v: R.test.domains[k].accuracy, color: OURS }] })),
+      { xMin: 0.82, xMax: 1, xTicks: [0.85, 0.9, 0.95, 1], fmt: (v) => v.toFixed(3), l: 110 });
+    /* length */
+    legend("len-legend", [["Zero-shot baseline", BASE], ["Ours", OURS]]);
+    const groups = [];
+    R.waimai.analysis.by_length.forEach((b) => groups.push({ label: `外卖 ${b.tokens} token（${b.n.toLocaleString("en")}）`, bars: [{ name: "baseline", v: b.baseline, color: BASE }, { name: "ours", v: b.ours, color: OURS }] }));
+    R.test.analysis.by_length.filter((b) => b.n >= 20).forEach((b) => groups.push({ label: `test ${b.tokens} token（${b.n}）`, bars: [{ name: "baseline", v: b.baseline, color: BASE }, { name: "ours", v: b.ours, color: OURS }] }));
+    barChart("len-chart", groups, { xMin: 0.82, xMax: 1, xTicks: [0.85, 0.9, 0.95, 1], fmt: (v) => v.toFixed(3), l: 190 });
+    /* reliability */
+    legend("rel-legend", [["Ours（T=1.23），点大小 = 评论数", OURS], ["完美校准", css("--muted")]]);
+    (function rel() {
+      const H = 270, { box, svg, W } = frame("rel-chart", H), tip = tipper(box);
+      const panels = [["ChnSentiCorp test", R.test.reliability], ["外卖 OOD", R.waimai.reliability]];
+      const pw = (W - 30) / 2;
+      panels.forEach(([name, bins], pi) => {
+        const ox = pi * (pw + 30), m = { l: 40, r: 10, t: 22, b: 34 };
+        const x = linScale(0.5, 1, ox + m.l, ox + pw - m.r), y = linScale(0.0, 1, H - m.b, m.t);
+        T(svg, ox + m.l, 14, name, { fill: css("--ink"), "font-size": 12, "font-weight": 600 });
+        [0, 0.25, 0.5, 0.75, 1].forEach((v) => { S("line", { x1: x(0.5), x2: x(1), y1: y(v), y2: y(v), stroke: css("--line-2") }, svg); T(svg, x(0.5) - 6, y(v) + 4, v.toFixed(2), { "text-anchor": "end" }); });
+        [0.5, 0.75, 1].forEach((v) => T(svg, x(v), H - m.b + 16, v.toFixed(2), { "text-anchor": "middle" }));
+        T(svg, (x(0.5) + x(1)) / 2, H - 4, "平均把握", { "text-anchor": "middle", "font-size": 11 });
+        S("line", { x1: x(0.5), y1: y(0.5), x2: x(1), y2: y(1), stroke: css("--muted"), "stroke-dasharray": "4 4" }, svg);
+        const maxN = Math.max(...bins.map((b) => b.n));
+        bins.forEach((b) => { const c = S("circle", { cx: x(b.confidence), cy: y(b.accuracy), r: 3 + 9 * Math.sqrt(b.n / maxN), fill: OURS, "fill-opacity": 0.75, stroke: css("--panel"), "stroke-width": 1.5 }, svg);
+          c.addEventListener("mousemove", (ev) => tip.show(ev, [`${name} · 把握 ${b.bin}`, `评论数 ${b.n.toLocaleString("en")}`, `平均把握 ${f3(b.confidence)}`, `实际准确率 ${f3(b.accuracy)}`])); c.addEventListener("mouseleave", () => tip.hide()); });
+      });
+    })();
+  }
+
+  /* ---------- error list ---------- */
+  (() => {
+    const verdict = ["标签疑似标反", "标签疑似标反", "标签疑似标反", "标签疑似标反", "标签疑似标反", "标签疑似标反", "难判断（偏正面的鸡汤，标签可能对）", "标签疑似标反", "褒贬混合（只说位置好）", "褒贬混合", "褒贬混合（硬件好、服务差）", "褒贬混合（位置好、服务差）"];
+    const box = document.getElementById("err-list");
+    R.test.errors.slice(0, 12).forEach((e, i) => {
+      const d = document.createElement("div"); d.className = "err";
+      const t = document.createElement("div"); t.textContent = e.text; d.appendChild(t);
+      const mm = document.createElement("div"); mm.className = "meta"; mm.textContent = `标签 ${e.label} · 模型给这个标签 ${(e.p_label * 100).toFixed(1)}% · ${e.domain} · 判断：${verdict[i] || ""}`; d.appendChild(mm);
+      box.appendChild(d);
+    });
+  })();
+
+  draw();
+  let tm; window.addEventListener("resize", () => { clearTimeout(tm); tm = setTimeout(draw, 150); });
+})();
+</script>
+</body>
+</html>

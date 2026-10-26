@@ -19,6 +19,20 @@ A Chinese, plain-language walkthrough of how Kev turns a Qwen model into a decis
 
 页面里有两个可以交互的部分：注意力掩码矩阵，以及一个 pointer head + softmax + 温度的小计算器。
 
+在线阅读：<https://cdydoodle.github.io/xev/>
+
+## 小实验：自己从头 post-train 一个中文情感分类器
+
+[`sentiment/`](sentiment/) 是按上面的思路自己写的一个完整实验（不依赖 Kev 的代码和权重）：从 Qwen3.5-4B-Base 开始，LoRA + Kev-style pointer head，在清洗后的 ChnSentiCorp 上训练 36 分钟。
+
+| | Zero-shot baseline | Ours | 差 |
+|---|---|---|---|
+| ChnSentiCorp test（848 条） | 0.905 | **0.956** | +5.2 pp，95% CI [+3.5, +7.0] |
+| 外卖评论 out-of-domain（11,973 条） | **0.899** | 0.886 | −1.3 pp，95% CI [−1.8, −0.9] |
+
+- [实验报告](https://cdydoodle.github.io/xev/sentiment/report.html)：数据 leakage、baseline、训练曲线、calibration、test 与 out-of-domain 对比、错误分析
+- [实验计划](https://cdydoodle.github.io/xev/sentiment/plan.html)：开始之前、经过 review 的计划
+
 ## 来源
 
 - 所有真实数字摘自 jaredpalmer/kev 在 commit [`2074cc4`](https://github.com/jaredpalmer/kev/tree/2074cc44256200bb37540103fa4572901faa10f3) 的 README、模型卡、`PLAN.md` 和源码。

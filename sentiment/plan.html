@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>xev-sentiment 训练计划</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+/* Layout: a review document. One 52rem column, a sticky step index on wide screens, each step a block with
+   purpose / input→output / method / exit criteria. Data-split colours (train / validation / test) are the only
+   categorical hues; violet marks trainable parts and review gates. */
+:root {
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --ink: #161d27;
+  --ink-2: #434c5a;
+  --muted: #687180;
+  --line: #d8dde5;
+  --line-2: #e9edf2;
+  --code-bg: #eef1f5;
+  --accent: #4a3aa7;
+  --accent-ink: #ffffff;
+  --accent-soft: #ebe8f8;
+  --train: #2a78d6;
+  --val: #1baf7a;
+  --test: #eb6834;
+  --frozen: #7d8694;
+  --good: #0a8f0a;
+  --good-soft: #e3f4e3;
+  --warn-soft: #fdf1dc;
+  --warn-ink: #8a5a00;
+  --f-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Noto Sans SC", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --panel: #181d25; --ink: #e7ebf0; --ink-2: #b9c0ca; --muted: #8d96a3;
+    --line: #2c333d; --line-2: #222831; --code-bg: #1d232c;
+    --accent: #9085e9; --accent-ink: #11151b; --accent-soft: #262245;
+    --train: #3987e5; --val: #199e70; --test: #d95926; --frozen: #8a93a0;
+    --good: #4cc44c; --good-soft: #17301a; --warn-soft: #33270f; --warn-ink: #f0c36a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --panel: #181d25; --ink: #e7ebf0; --ink-2: #b9c0ca; --muted: #8d96a3;
+  --line: #2c333d; --line-2: #222831; --code-bg: #1d232c;
+  --accent: #9085e9; --accent-ink: #11151b; --accent-soft: #262245;
+  --train: #3987e5; --val: #199e70; --test: #d95926; --frozen: #8a93a0;
+  --good: #4cc44c; --good-soft: #17301a; --warn-soft: #33270f; --warn-ink: #f0c36a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.78; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.layout { max-width: 78rem; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); padding-block: 40px 96px; display: grid; gap: 56px; }
+@media (min-width: 1180px) { .layout { grid-template-columns: 12rem minmax(0, 1fr); } }
+main { min-width: 0; max-width: 52rem; display: flex; flex-direction: column; }
+.toc { display: none; }
+@media (min-width: 1180px) { .toc { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 36px); align-self: start; font-size: 13.5px; } }
+.toc p { margin: 0 0 10px; color: var(--muted); font-size: 12px; letter-spacing: .06em; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border-left: 1px solid var(--line); }
+.toc a { display: block; padding: 4px 0 4px 14px; color: var(--ink-2); text-decoration: none; margin-left: -1px; border-left: 2px solid transparent; }
+.toc a:hover { color: var(--ink); border-left-color: var(--accent); }
+.toc .n { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); margin-right: 6px; }
+
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: 1.55rem; font-weight: 700; }
+h3 { font-size: 1.1rem; font-weight: 600; }
+p { margin: 0; max-width: 44em; }
+.eyebrow { font-size: 12.5px; color: var(--muted); letter-spacing: .05em; font-family: var(--f-mono); }
+.lead { font-size: 1.1rem; color: var(--ink-2); line-height: 1.85; }
+.muted { color: var(--muted); }
+.small { font-size: .875rem; }
+code { font-family: var(--f-mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font: 12.8px/1.65 var(--f-mono); color: var(--ink); }
+pre code { background: none; padding: 0; font-size: inherit; }
+.c-com { color: var(--muted); }
+
+header.hero { display: grid; gap: 18px; padding-bottom: 36px; }
+section { display: grid; gap: 18px; padding-block: 40px; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.sec-head { display: grid; gap: 6px; }
+.step-tag { font-family: var(--f-mono); font-size: 13px; color: var(--accent); letter-spacing: .04em; }
+ul.plain, ol.plain { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 44em; }
+
+/* status */
+.status { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+.st { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: grid; gap: 4px; }
+.st .k { font-size: 12.5px; color: var(--muted); }
+.st .v { font-size: .95rem; font-weight: 500; }
+.pill { justify-self: start; font-size: 11.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.done { background: var(--good-soft); color: var(--good); }
+.pill.draft { background: var(--warn-soft); color: var(--warn-ink); }
+.pill.todo { background: var(--code-bg); color: var(--ink-2); }
+.pill.gate { background: var(--accent-soft); color: var(--accent); }
+
+/* tables */
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; line-height: 1.6; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: .82rem; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono { font-family: var(--f-mono); font-size: .84rem; white-space: nowrap; }
+
+/* figures */
+figure { margin: 0; display: grid; gap: 10px; }
+figcaption { font-size: .875rem; color: var(--muted); line-height: 1.7; max-width: 48em; }
+.fig-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.fig-scroll { overflow-x: auto; }
+.fig-scroll svg { min-width: 760px; }
+svg { display: block; max-width: 100%; height: auto; }
+.d-txt { fill: var(--ink); font-family: var(--f-body); font-size: 13px; }
+.d-sm { font-size: 12px; }
+.d-tiny { font-size: 11px; }
+.d-bold { font-weight: 700; }
+.d-mono { fill: var(--ink); font-family: var(--f-mono); font-size: 12px; }
+.d-muted { fill: var(--muted); }
+.d-acc { fill: var(--accent); }
+.d-box { fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
+.d-frozen { fill: color-mix(in srgb, var(--frozen) 14%, var(--panel)); stroke: var(--frozen); stroke-width: 1; }
+.d-op { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.d-read { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.d-tok { fill: var(--code-bg); stroke: var(--line); stroke-width: 1; }
+.d-train { fill: color-mix(in srgb, var(--train) 16%, var(--panel)); stroke: var(--train); stroke-width: 1.4; }
+.d-val { fill: color-mix(in srgb, var(--val) 16%, var(--panel)); stroke: var(--val); stroke-width: 1.4; }
+.d-test { fill: color-mix(in srgb, var(--test) 16%, var(--panel)); stroke: var(--test); stroke-width: 1.4; }
+.l-train { stroke: var(--train); stroke-width: 2.4; fill: none; }
+.l-val { stroke: var(--val); stroke-width: 2.4; fill: none; }
+.l-test { stroke: var(--test); stroke-width: 2.4; fill: none; }
+.f-train { fill: var(--train); } .f-val { fill: var(--val); } .f-test { fill: var(--test); }
+.halo { stroke: var(--panel); stroke-width: 8; fill: none; }
+.d-arrow { stroke: var(--ink-2); stroke-width: 1.4; fill: none; }
+.d-arrow-light { stroke: var(--muted); stroke-width: 1; fill: none; }
+.d-arrow-acc { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+.d-dash { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+.d-head { fill: var(--ink-2); } .d-head-acc { fill: var(--accent); }
+.gate { fill: var(--accent); }
+.c-axis { stroke: var(--muted); stroke-width: 1; }
+.c-grid { stroke: var(--line-2); stroke-width: 1; }
+.c-line { stroke: var(--accent); stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.c-area { fill: color-mix(in srgb, var(--accent) 10%, transparent); }
+.c-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.c-cross { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font: 12px/1.55 var(--f-mono); padding: 6px 9px; border-radius: 6px; white-space: nowrap; z-index: 2; }
+
+/* step blocks */
+.step-grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .step-grid { grid-template-columns: 7.5rem minmax(0, 1fr); } }
+.step-grid > .k { font-size: 12.5px; color: var(--muted); font-weight: 500; padding-top: 2px; }
+.step-grid > .v { min-width: 0; }
+.io { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-family: var(--f-mono); font-size: 12.5px; }
+.io span.box { background: var(--code-bg); border-radius: 5px; padding: 1px 7px; }
+.exit { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--good); border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: .92rem; }
+.gatebox { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: .92rem; }
+.srcbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; scroll-margin-top: 24px; }
+.srcbox p, .srcbox ul { max-width: none; }
+.tree { font: 12.8px/1.75 var(--f-mono); background: var(--code-bg); border-radius: 8px; padding: 14px 16px; overflow-x: auto; white-space: pre; }
+.tree .s-done { color: var(--good); } .tree .s-draft { color: var(--warn-ink); } .tree .s-todo { color: var(--muted); }
+
+.qcards { display: grid; gap: 10px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .qcards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.q { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.q .qn { font-family: var(--f-mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+.q .qt { font-weight: 600; }
+.q .qd { font-size: .9rem; color: var(--ink-2); }
+.q .def { font-size: .86rem; }
+.q .def b { color: var(--accent); }
+footer { padding-top: 36px; border-top: 1px solid var(--line); font-size: .875rem; color: var(--muted); display: grid; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" aria-label="目录">
+    <p>目录</p>
+    <ol>
+      <li><a href="#status"><span class="n">··</span>现状与决定</a></li>
+      <li><a href="#overview"><span class="n">··</span>总览</a></li>
+      <li><a href="#layout"><span class="n">··</span>项目结构</a></li>
+      <li><a href="#s1"><span class="n">1</span>Data</a></li>
+      <li><a href="#s2"><span class="n">2</span>Zero-shot baseline</a></li>
+      <li><a href="#s3"><span class="n">3</span>Model</a></li>
+      <li><a href="#s4"><span class="n">4</span>Training</a></li>
+      <li><a href="#s5"><span class="n">5</span>Calibration</a></li>
+      <li><a href="#s6"><span class="n">6</span>Evaluation</a></li>
+      <li><a href="#s7"><span class="n">7</span>Serving</a></li>
+      <li><a href="#hparams"><span class="n">··</span>Hyperparameters</a></li>
+      <li><a href="#risks"><span class="n">··</span>时间与风险</a></li>
+      <li><a href="#questions"><span class="n">··</span>需要你决定</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">xev / sentiment · 计划书 v1 · 等你 review</div>
+      <h1>xev-sentiment 训练计划</h1>
+      <p class="lead">从 <b>Qwen3.5-4B-Base</b> 开始，用我们自己写的代码做 post-training，得到一个中文评论的 sentiment classifier（positive / negative，评论来自酒店、笔记本电脑、书籍三个领域），输出的是 calibrated probability。读出方式借用 Kev 的 pointer head 思路，但不使用 Kev 的任何代码和 weights。</p>
+      <p class="small muted">这是实验开始之前、经过 review 的计划，保留原样。执行中的改动和全部结果见 <a href="report.html">实验报告</a>。</p>
+    </header>
+
+    <!-- ============================================================ STATUS -->
+    <section id="status">
+      <div class="sec-head"><h2>现状与已定的决定</h2></div>
+      <div class="status">
+        <div class="st"><span class="k">Environment（WSL）</span><span class="v">torch 2.8.0+cu128，4090 可用</span><span class="pill done">已完成</span></div>
+        <div class="st"><span class="k">Draft code</span><span class="v">6 个文件，未运行</span><span class="pill draft">草稿</span></div>
+        <div class="st"><span class="k">Data / base model</span><span class="v">尚未下载（约 9.3 GB）</span><span class="pill todo">未开始</span></div>
+        <div class="st"><span class="k">Training / evaluation</span><span class="v">等 review 通过</span><span class="pill todo">未开始</span></div>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>项目</th><th>决定</th></tr></thead>
+          <tbody>
+            <tr><td>Base model</td><td><code>Qwen/Qwen3.5-4B-Base</code>，revision <code>1001bb4d</code>，Apache-2.0。attention 与 Gated DeltaNet 混合结构</td></tr>
+            <tr><td>Dataset</td><td><code>lansinuote/ChnSentiCorp</code>，revision <code>b0c4c119</code>。train 9,600 / validation 1,200 / test 1,200，label 0 = negative，1 = positive。评论来自三个领域：酒店、笔记本电脑、书籍，大致各占三分之一，正负各半（见下方"数据从哪来"）</td></tr>
+            <tr><td>Task</td><td>Binary classification：positive / negative</td></tr>
+            <tr><td>Readout</td><td>自己实现的 Kev-style pointer head（<code>&lt;decide&gt;</code> 与每个 <code>&lt;/opt&gt;</code> 的 hidden state 做 dot product）</td></tr>
+            <tr><td>Fine-tuning</td><td>LoRA，从 base 开始训练（from scratch post-training），不用任何已训练好的分类权重</td></tr>
+            <tr><td>Hardware</td><td>本地 RTX 4090 24 GB，在 WSL Ubuntu 里运行；venv 和 Hugging Face cache 放在 Linux 文件系统</td></tr>
+            <tr><td>Software</td><td>torch 2.8.0、transformers 5.17.0、peft 0.21.0、flash-linear-attention 0.5.2、causal-conv1d 1.7.0（版本已固定在 <code>pyproject.toml</code>）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ OVERVIEW -->
+    <section id="overview">
+      <div class="sec-head"><h2>总览：七步，三份数据，四个 review 点</h2></div>
+      <p>整个计划最重要的一条纪律是三份数据各管各的：<b>train</b> 只用来训练；<b>validation</b> 用来测 baseline、选 checkpoint、拟合 temperature；<b>test</b> 一直锁着，只在 Step 6 读一次。这样最后的 test 结果才没有被我们的选择"偷看"过。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg viewBox="0 0 880 320" role="img" aria-label="七个步骤从左到右排列；Step 1 产出 train、validation、test 三份数据；train 只连到训练，validation 连到 baseline、训练（选 checkpoint）和 calibration，test 只连到 evaluation；四个 review 点分别在 data、训练和 evaluation 之后。">
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="a1t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-train"/></marker>
+              <marker id="a1v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-val"/></marker>
+              <marker id="a1x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-test"/></marker>
+            </defs>
+            <rect x="20" y="40" width="130" height="60" rx="8" class="d-box"/>
+            <text x="85" y="65" text-anchor="middle" class="d-txt d-bold">1 Data</text>
+            <text x="85" y="85" text-anchor="middle" class="d-txt d-sm d-muted">清洗 · 查 leakage</text>
+            <rect x="186" y="40" width="120" height="60" rx="8" class="d-box"/>
+            <text x="246" y="65" text-anchor="middle" class="d-txt d-bold">2 Baseline</text>
+            <text x="246" y="85" text-anchor="middle" class="d-txt d-sm d-muted">zero-shot，不训练</text>
+            <rect x="324" y="40" width="120" height="60" rx="8" class="d-op"/>
+            <text x="384" y="65" text-anchor="middle" class="d-txt d-bold">3–4 Train</text>
+            <text x="384" y="85" text-anchor="middle" class="d-txt d-sm d-muted">LoRA + head</text>
+            <rect x="462" y="40" width="120" height="60" rx="8" class="d-box"/>
+            <text x="522" y="65" text-anchor="middle" class="d-txt d-bold">5 Calibrate</text>
+            <text x="522" y="85" text-anchor="middle" class="d-txt d-sm d-muted">拟合 temperature</text>
+            <rect x="600" y="40" width="120" height="60" rx="8" class="d-box"/>
+            <text x="660" y="65" text-anchor="middle" class="d-txt d-bold">6 Evaluate</text>
+            <text x="660" y="85" text-anchor="middle" class="d-txt d-sm d-muted">读 test 一次</text>
+            <rect x="738" y="40" width="120" height="60" rx="8" class="d-box"/>
+            <text x="798" y="65" text-anchor="middle" class="d-txt d-bold">7 Serve</text>
+            <text x="798" y="85" text-anchor="middle" class="d-txt d-sm d-muted">FastAPI</text>
+            <line x1="150" y1="70" x2="182" y2="70" class="d-arrow" marker-end="url(#a1)"/>
+            <line x1="306" y1="70" x2="320" y2="70" class="d-arrow" marker-end="url(#a1)"/>
+            <line x1="444" y1="70" x2="458" y2="70" class="d-arrow" marker-end="url(#a1)"/>
+            <line x1="582" y1="70" x2="596" y2="70" class="d-arrow" marker-end="url(#a1)"/>
+            <line x1="720" y1="70" x2="734" y2="70" class="d-arrow" marker-end="url(#a1)"/>
+
+            <rect x="144" y="34" width="12" height="12" transform="rotate(45 150 40)" class="gate"/>
+            <text x="150" y="24" text-anchor="middle" class="d-txt d-tiny d-bold d-acc">R1</text>
+            <rect x="438" y="34" width="12" height="12" transform="rotate(45 444 40)" class="gate"/>
+            <text x="444" y="24" text-anchor="middle" class="d-txt d-tiny d-bold d-acc">R2 · R3</text>
+            <rect x="714" y="34" width="12" height="12" transform="rotate(45 720 40)" class="gate"/>
+            <text x="720" y="24" text-anchor="middle" class="d-txt d-tiny d-bold d-acc">R4</text>
+
+            <line x1="85" y1="100" x2="85" y2="148" class="d-arrow" marker-end="url(#a1)"/>
+            <text x="93" y="128" class="d-txt d-tiny d-muted">产出</text>
+            <rect x="20" y="152" width="130" height="36" rx="6" class="d-train"/><text x="85" y="175" text-anchor="middle" class="d-txt d-sm d-bold">train · 9,600</text>
+            <rect x="20" y="212" width="130" height="36" rx="6" class="d-val"/><text x="85" y="235" text-anchor="middle" class="d-txt d-sm d-bold">validation · 1,200</text>
+            <rect x="20" y="272" width="130" height="36" rx="6" class="d-test"/><text x="85" y="295" text-anchor="middle" class="d-txt d-sm d-bold">test · 1,200</text>
+
+            <line x1="150" y1="170" x2="370" y2="170" class="l-train"/>
+            <line x1="150" y1="230" x2="522" y2="230" class="l-val"/>
+            <line x1="150" y1="290" x2="660" y2="290" class="l-test"/>
+
+            <line x1="370" y1="170" x2="370" y2="104" class="l-train" marker-end="url(#a1t)"/>
+            <line x1="246" y1="230" x2="246" y2="104" class="halo"/>
+            <line x1="246" y1="230" x2="246" y2="104" class="l-val" marker-end="url(#a1v)"/>
+            <line x1="400" y1="230" x2="400" y2="104" class="l-val" marker-end="url(#a1v)"/>
+            <line x1="522" y1="230" x2="522" y2="104" class="l-val" marker-end="url(#a1v)"/>
+            <line x1="660" y1="290" x2="660" y2="104" class="l-test" marker-end="url(#a1x)"/>
+            <circle cx="370" cy="170" r="4" class="f-train"/>
+            <circle cx="246" cy="230" r="4" class="f-val"/>
+            <circle cx="400" cy="230" r="4" class="f-val"/>
+            <circle cx="522" cy="230" r="4" class="f-val"/>
+            <circle cx="660" cy="290" r="4" class="f-test"/>
+            <text x="364" y="162" text-anchor="end" class="d-txt d-tiny">训练</text>
+            <text x="240" y="222" text-anchor="end" class="d-txt d-tiny">测 baseline</text>
+            <text x="406" y="222" class="d-txt d-tiny">选 checkpoint</text>
+            <text x="528" y="222" class="d-txt d-tiny">拟合 T</text>
+            <text x="666" y="282" class="d-txt d-tiny">只在这里读一次</text>
+          </svg>
+        </div>
+        <figcaption>三条彩色的线是三份数据流向哪里。紫色菱形 R1–R4 是我会停下来等你 review 的地方：R1 看数据统计，R2 看 smoke run，R3 看完整训练曲线，R4 看最终 test 结果。</figcaption>
+      </figure>
+    </section>
+
+    <!-- ============================================================ LAYOUT -->
+    <section id="layout">
+      <div class="sec-head"><h2>项目结构</h2></div>
+      <p>代码在 <code>G:\dev\repo\xev\sentiment</code>（WSL 里是 <code>/mnt/g/dev/repo/xev/sentiment</code>），每个 step 一个脚本。<code>data/</code> 和 <code>runs/</code> 已经在 <code>.gitignore</code> 里，不会被提交。</p>
+<div class="tree">sentiment/
+  pyproject.toml     <span class="s-done">✓</span> 固定版本的依赖
+  env.sh             <span class="s-done">✓</span> 在 WSL 里 source：venv、HF cache 位置
+  common.py          <span class="s-draft">草稿</span> base model、dataset、revision、label 顺序
+  prepare_data.py    <span class="s-draft">草稿</span> Step 1
+  baseline.py        <span class="s-todo">待写</span> Step 2
+  model.py           <span class="s-draft">草稿</span> Step 3：input format、pointer head、LoRA
+  train.py           <span class="s-todo">待写</span> Step 4
+  calibrate.py       <span class="s-todo">待写</span> Step 5
+  metrics.py         <span class="s-todo">待写</span> Step 6：accuracy、NLL、Brier、ECE、coverage
+  evaluate.py        <span class="s-todo">待写</span> Step 6
+  serve.py           <span class="s-todo">待写</span> Step 7
+  data/  runs/       不提交</div>
+    </section>
+
+    <!-- ============================================================ STEP 1 -->
+    <section id="s1">
+      <div class="sec-head"><span class="step-tag">Step 1 · prepare_data.py</span><h2>Data preparation</h2></div>
+      <div class="srcbox" id="source">
+        <h3>数据从哪来</h3>
+        <ul class="plain">
+          <li><b>Hugging Face 上的副本：</b><code>lansinuote/ChnSentiCorp</code> 是一个转存版本，只有三个 parquet 文件和一个 <code>dataset_infos.json</code>，没有 README，没有写来源，也没有写 license。</li>
+          <li><b>原始语料：</b>ChnSentiCorp 通常指谭松波（中科院计算所）整理的中文情感语料，评论来自酒店、笔记本电脑、书籍三个领域。9,600 / 1,200 / 1,200 这个切分和百度 ERNIE、PaddleNLP 里常用的 ChnSentiCorp 版本一致。</li>
+          <li><b>我抽查了 train 里的 600 条</b>（按关键词粗分，只是估计）：酒店约 29%，书籍约 27%，笔记本电脑约 26%，分不出来约 15%，同时提到几个领域约 3%。正负 298 : 302，基本平衡。</li>
+          <li><b>里面的情况：</b>有繁体字评论；也有不少评论讲的是商城（比如当当）的发货和降价，而不是商品本身。</li>
+          <li><b>License：</b>没有写明，按惯例只用于研究和学习。数据不会提交、也不会再分发（<code>data/</code> 已在 <code>.gitignore</code> 里）。</li>
+        </ul>
+        <p class="small muted">因为不只是酒店评论，题目措辞已从"这条酒店评论的情感倾向是？"改成"这条评论的情感倾向是？"。</p>
+      </div>
+      <div class="step-grid">
+        <div class="k">目的</div><div class="v">拿到干净、没有 leakage 的三份数据，并知道评论有多长。</div>
+        <div class="k">输入 → 输出</div><div class="v"><div class="io"><span class="box">ChnSentiCorp@b0c4c119</span>→<span class="box">data/train.jsonl</span><span class="box">validation.jsonl</span><span class="box">test.jsonl</span><span class="box">stats.json</span></div></div>
+        <div class="k">做法</div><div class="v"><ul class="plain">
+          <li>按固定 revision 下载；每行写成 <code>{"id", "text", "label"}</code>，label 用 <code>"negative"</code> / <code>"positive"</code>。</li>
+          <li>去掉空文本和同一份数据里的重复评论。</li>
+          <li><b>Leakage check</b>：validation 或 test 里如果出现和 train 一模一样的评论，就删掉，否则 test 分数会虚高。</li>
+          <li>统计 label balance，以及长度的 p50 / p90 / p99 / max（按字符和 Qwen token 两种算）。</li>
+          <li>按关键词粗分三个领域，统计每个领域的数量和正负比例，后面 error analysis 也按领域分开看。</li>
+        </ul></div>
+        <div class="k">验收</div><div class="v"><div class="exit">三个文件写出；没有 train 与 test 的重叠；拿到 token 长度分布，用来定 <code>MAX_TEXT_TOKENS</code>。</div></div>
+        <div class="k">Review</div><div class="v"><div class="gatebox"><b>R1</b>：我把统计结果和每类 3 条样例发给你，一起决定截断长度（草稿是 384 token，超长时保留开头一半和结尾一半，因为结论常在最后）。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 2 -->
+    <section id="s2">
+      <div class="sec-head"><span class="step-tag">Step 2 · baseline.py</span><h2>Zero-shot baseline</h2></div>
+      <div class="step-grid">
+        <div class="k">目的</div><div class="v">知道"什么都不训练"时 base model 能做到多少，后面才能说清楚 post-training 带来了多少。</div>
+        <div class="k">做法</div><div class="v"><ul class="plain">
+          <li>保留 LM head，用 prompt：<code>评论：…\n这条评论的情感是？\nA. 正面\nB. 负面\n答案：</code></li>
+          <li>只看下一个 token 是 "A" 还是 "B" 的 logit，softmax 成两个概率。</li>
+          <li>A/B 两种顺序都跑一遍，量出 base model 自己的 <b>option-order bias</b>。</li>
+          <li>只在 validation 上跑；它的 test 数字留到 Step 6 和我们的模型一起读。</li>
+        </ul></div>
+        <div class="k">验收</div><div class="v"><div class="exit">得到 validation 上的 accuracy、NLL、ECE，以及交换顺序后的 flip rate。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 3 -->
+    <section id="s3">
+      <div class="sec-head"><span class="step-tag">Step 3 · model.py</span><h2>Model</h2></div>
+      <p>模型由三块组成：冻结的 backbone、可训练的 LoRA、从零开始训练的 pointer head。每条评论只有一道题，所以不需要 Kev 那种题与题之间的 attention mask，普通的从左到右 forward 就够了。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg viewBox="0 0 880 362" role="img" aria-label="模型结构：输入序列经过冻结的 Qwen3.5 backbone（带可训练的 LoRA），只取两个 /opt 和 decide 三个位置的 hidden state，交给可训练的 pointer head 得到两个 logits；训练时算 cross-entropy，推理时除以 temperature 再 softmax。">
+            <defs>
+              <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="a2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-acc"/></marker>
+            </defs>
+            <rect x="40" y="20" width="330" height="36" rx="6" class="d-box"/>
+            <text x="205" y="43" text-anchor="middle" class="d-txt d-sm">训练：cross-entropy(z, label)，T = 1</text>
+            <rect x="40" y="84" width="330" height="36" rx="6" class="d-box"/>
+            <text x="205" y="107" text-anchor="middle" class="d-txt d-sm">推理：softmax(z / T) → 两个概率</text>
+            <rect x="560" y="20" width="190" height="36" rx="6" class="d-box"/>
+            <text x="655" y="43" text-anchor="middle" class="d-mono">logits z（2 个）</text>
+            <line x1="558" y1="38" x2="374" y2="38" class="d-arrow" marker-end="url(#a2)"/>
+            <text x="466" y="31" text-anchor="middle" class="d-txt d-tiny d-muted">训练时</text>
+            <line x1="568" y1="58" x2="374" y2="100" class="d-arrow" marker-end="url(#a2)"/>
+            <text x="452" y="92" text-anchor="middle" class="d-txt d-tiny d-muted">推理时</text>
+
+            <line x1="655" y1="82" x2="655" y2="60" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <rect x="470" y="84" width="370" height="44" rx="6" class="d-op"/>
+            <text x="655" y="102" text-anchor="middle" class="d-txt d-sm d-bold">Pointer head · fp32 · trainable</text>
+            <text x="655" y="120" text-anchor="middle" class="d-mono">z_j = (W_q h_d)·(W_k h_j) / 16</text>
+
+            <line x1="537" y1="146" x2="537" y2="131" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <line x1="717" y1="146" x2="717" y2="131" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <line x1="781" y1="146" x2="781" y2="131" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <text x="40" y="160" class="d-txt d-sm d-muted">last hidden state，只取 3 个位置：</text>
+            <text x="40" y="178" class="d-txt d-sm d-muted">h₁ = 负面的 &lt;/opt&gt;，h₂ = 正面的 &lt;/opt&gt;，h_d = &lt;decide&gt;</text>
+            <rect x="505" y="148" width="64" height="30" rx="5" class="d-read"/><text x="537" y="168" text-anchor="middle" class="d-mono">h₁</text>
+            <rect x="685" y="148" width="64" height="30" rx="5" class="d-read"/><text x="717" y="168" text-anchor="middle" class="d-mono">h₂</text>
+            <rect x="753" y="148" width="56" height="30" rx="5" class="d-read"/><text x="781" y="168" text-anchor="middle" class="d-mono">h_d</text>
+            <line x1="537" y1="206" x2="537" y2="181" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <line x1="717" y1="206" x2="717" y2="181" class="d-arrow-acc" marker-end="url(#a2a)"/>
+            <line x1="781" y1="206" x2="781" y2="181" class="d-arrow-acc" marker-end="url(#a2a)"/>
+
+            <rect x="40" y="208" width="800" height="84" rx="8" class="d-frozen"/>
+            <text x="56" y="232" class="d-txt d-bold">Qwen3.5-4B-Base backbone · bf16 · frozen</text>
+            <text x="56" y="254" class="d-txt d-sm d-muted">attention + Gated DeltaNet + MLP × N 层；LM head 已去掉</text>
+            <text x="56" y="276" class="d-txt d-sm d-muted">5 个 special token 作分隔符，借用词表里已有的 token，不新增 embedding</text>
+            <rect x="596" y="220" width="230" height="30" rx="6" class="d-op"/>
+            <text x="711" y="240" text-anchor="middle" class="d-txt d-sm">+ LoRA r=16 · trainable</text>
+            <rect x="596" y="256" width="230" height="26" rx="6" class="d-box"/>
+            <text x="711" y="273" text-anchor="middle" class="d-txt d-tiny">gradient checkpointing（省显存）</text>
+
+            <line x1="95" y1="318" x2="95" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="190" y1="318" x2="190" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="274" y1="318" x2="274" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="340" y1="318" x2="340" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="412" y1="318" x2="412" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="474" y1="318" x2="474" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="537" y1="318" x2="537" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="592" y1="318" x2="592" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="654" y1="318" x2="654" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="717" y1="318" x2="717" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <line x1="781" y1="318" x2="781" y2="295" class="d-arrow-light" marker-end="url(#a2)"/>
+            <rect x="66" y="320" width="58" height="28" rx="5" class="d-tok"/><text x="95" y="339" text-anchor="middle" class="d-mono">&lt;state&gt;</text>
+            <rect x="130" y="320" width="120" height="28" rx="5" class="d-tok"/><text x="190" y="339" text-anchor="middle" class="d-txt d-sm">房间干净，服务好…</text>
+            <rect x="256" y="320" width="36" height="28" rx="5" class="d-tok"/><text x="274" y="339" text-anchor="middle" class="d-mono">&lt;q&gt;</text>
+            <rect x="298" y="320" width="84" height="28" rx="5" class="d-tok"/><text x="340" y="339" text-anchor="middle" class="d-txt d-sm">情感倾向是？</text>
+            <rect x="388" y="320" width="48" height="28" rx="5" class="d-tok"/><text x="412" y="339" text-anchor="middle" class="d-mono">&lt;opt&gt;</text>
+            <rect x="442" y="320" width="64" height="28" rx="5" class="d-tok"/><text x="474" y="339" text-anchor="middle" class="d-txt d-sm">负面：…</text>
+            <rect x="512" y="320" width="50" height="28" rx="5" class="d-read"/><text x="537" y="339" text-anchor="middle" class="d-mono">&lt;/opt&gt;</text>
+            <rect x="568" y="320" width="48" height="28" rx="5" class="d-tok"/><text x="592" y="339" text-anchor="middle" class="d-mono">&lt;opt&gt;</text>
+            <rect x="622" y="320" width="64" height="28" rx="5" class="d-tok"/><text x="654" y="339" text-anchor="middle" class="d-txt d-sm">正面：…</text>
+            <rect x="692" y="320" width="50" height="28" rx="5" class="d-read"/><text x="717" y="339" text-anchor="middle" class="d-mono">&lt;/opt&gt;</text>
+            <rect x="748" y="320" width="66" height="28" rx="5" class="d-read"/><text x="781" y="339" text-anchor="middle" class="d-mono">&lt;decide&gt;</text>
+          </svg>
+        </div>
+        <figcaption>灰色是 frozen 的部分，紫色是 trainable 的部分。从下往上读：输入序列 → backbone → 只取 3 个位置的 hidden state → pointer head → 两个 logits。训练时 T 固定为 1，T 只在推理时使用。</figcaption>
+      </figure>
+      <div class="step-grid">
+        <div class="k">Input format</div><div class="v"><code>&lt;state&gt; 评论 &lt;q&gt; 这条评论的情感倾向是？ &lt;opt&gt; 负面：不满意、抱怨、批评 &lt;/opt&gt; &lt;opt&gt; 正面：满意、称赞、推荐 &lt;/opt&gt; &lt;decide&gt;</code>。5 个分隔符借用 Qwen 词表里的 <code>&lt;|fim_prefix|&gt;</code>、<code>&lt;|fim_middle|&gt;</code>、<code>&lt;|box_start|&gt;</code>、<code>&lt;|box_end|&gt;</code>、<code>&lt;|fim_suffix|&gt;</code>。用户文本里的 <code>&lt;|…|&gt;</code> 会先被改写，防止伪造分隔符。</div>
+        <div class="k">Backbone</div><div class="v"><code>AutoModelForCausalLM.from_pretrained(...).model</code>，即去掉 LM head 的 Transformer 本体，bf16，参数 frozen。</div>
+        <div class="k">LoRA</div><div class="v">r = 16，alpha = 32，dropout = 0.05。target modules：attention 的 <code>q/k/v/o_proj</code>，MLP 的 <code>gate/up/down_proj</code>，Gated DeltaNet 的 <code>in_proj_qkv/z/a/b</code> 和 <code>out_proj</code>。LoRA weights 用 fp32。</div>
+        <div class="k">Pointer head</div><div class="v">W_q、W_k 都是 d → 256 的 linear layer，随机初始化，fp32。score = q·k / √256。</div>
+        <div class="k">Padding</div><div class="v">Right padding。pad 都在真实 token 之后，从左到右的模型看不到它们，对 attention 层和 DeltaNet 层都安全。</div>
+        <div class="k">验收</div><div class="v"><div class="exit">一个 batch 的 forward 输出形状是 [B, 2]；打印 trainable parameters 数量；确认 checkpoint 里只加载了 text 部分（这个 base checkpoint 可能带 vision weights）。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 4 -->
+    <section id="s4">
+      <div class="sec-head"><span class="step-tag">Step 4 · train.py</span><h2>Training</h2></div>
+      <p>每个 optimizer step 的流程如下。重点是第 ② 步：每条样本每个 epoch 都随机决定两个选项的顺序，否则 pointer head 可能学会"永远选第二个"这种 shortcut。</p>
+      <figure>
+        <div class="fig-box fig-scroll">
+          <svg viewBox="0 0 880 252" role="img" aria-label="一个 optimizer step：取 4 条样本、随机选项顺序、encode 和 pad、forward 加 loss、backward，重复 4 次做 gradient accumulation；然后 clip grad、AdamW step、scheduler；每 200 步在 validation 上评估并按 NLL 保存最优 checkpoint。">
+            <defs>
+              <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+              <marker id="a3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-acc"/></marker>
+            </defs>
+            <rect x="20" y="36" width="150" height="56" rx="8" class="d-box"/><text x="95" y="59" text-anchor="middle" class="d-txt d-sm d-bold">① 取 4 条样本</text><text x="95" y="79" text-anchor="middle" class="d-txt d-tiny d-muted">从打乱后的 train 依次取</text>
+            <rect x="188" y="36" width="150" height="56" rx="8" class="d-op"/><text x="263" y="59" text-anchor="middle" class="d-txt d-sm d-bold">② 随机选项顺序</text><text x="263" y="79" text-anchor="middle" class="d-txt d-tiny d-muted">50% 把负面 / 正面对调</text>
+            <rect x="356" y="36" width="150" height="56" rx="8" class="d-box"/><text x="431" y="59" text-anchor="middle" class="d-txt d-sm d-bold">③ encode + pad</text><text x="431" y="79" text-anchor="middle" class="d-txt d-tiny d-muted">≤ 384 token，right pad</text>
+            <rect x="524" y="36" width="150" height="56" rx="8" class="d-box"/><text x="599" y="59" text-anchor="middle" class="d-txt d-sm d-bold">④ forward + loss</text><text x="599" y="79" text-anchor="middle" class="d-txt d-tiny d-muted">bf16 autocast · CE</text>
+            <rect x="692" y="36" width="150" height="56" rx="8" class="d-box"/><text x="767" y="59" text-anchor="middle" class="d-txt d-sm d-bold">⑤ backward</text><text x="767" y="79" text-anchor="middle" class="d-txt d-tiny d-muted">累加梯度，先不更新</text>
+            <line x1="170" y1="64" x2="184" y2="64" class="d-arrow" marker-end="url(#a3)"/>
+            <line x1="338" y1="64" x2="352" y2="64" class="d-arrow" marker-end="url(#a3)"/>
+            <line x1="506" y1="64" x2="520" y2="64" class="d-arrow" marker-end="url(#a3)"/>
+            <line x1="674" y1="64" x2="688" y2="64" class="d-arrow" marker-end="url(#a3)"/>
+            <path d="M730,94 V114 H130 V97" class="d-arrow" marker-end="url(#a3)"/>
+            <text x="430" y="130" text-anchor="middle" class="d-txt d-sm d-muted">重复 4 次 → effective batch = 16（gradient accumulation）</text>
+            <path d="M842,64 H864 V148 H60 V164" class="d-arrow" marker-end="url(#a3)"/>
+            <text x="858" y="142" text-anchor="end" class="d-txt d-tiny d-muted">4 次之后</text>
+            <rect x="20" y="168" width="150" height="56" rx="8" class="d-box"/><text x="95" y="191" text-anchor="middle" class="d-txt d-sm d-bold">⑥ clip grad</text><text x="95" y="211" text-anchor="middle" class="d-txt d-tiny d-muted">global norm ≤ 1.0</text>
+            <rect x="188" y="168" width="150" height="56" rx="8" class="d-box"/><text x="263" y="191" text-anchor="middle" class="d-txt d-sm d-bold">⑦ AdamW step</text><text x="263" y="211" text-anchor="middle" class="d-txt d-tiny d-muted">LoRA 1e-4 · head 1e-3</text>
+            <rect x="356" y="168" width="150" height="56" rx="8" class="d-box"/><text x="431" y="191" text-anchor="middle" class="d-txt d-sm d-bold">⑧ scheduler</text><text x="431" y="211" text-anchor="middle" class="d-txt d-tiny d-muted">warmup → cosine</text>
+            <rect x="560" y="168" width="282" height="56" rx="8" class="d-op"/><text x="701" y="191" text-anchor="middle" class="d-txt d-sm d-bold">⑨ validation eval</text><text x="701" y="211" text-anchor="middle" class="d-txt d-tiny d-muted">accuracy / NLL / ECE；NLL 最低时存 checkpoint</text>
+            <line x1="170" y1="196" x2="184" y2="196" class="d-arrow" marker-end="url(#a3)"/>
+            <line x1="338" y1="196" x2="352" y2="196" class="d-arrow" marker-end="url(#a3)"/>
+            <line x1="506" y1="196" x2="556" y2="196" class="d-dash" marker-end="url(#a3)"/>
+            <text x="531" y="188" text-anchor="middle" class="d-txt d-tiny d-muted">每 200 步</text>
+            <text x="20" y="246" class="d-txt d-sm d-muted">⑧ 之后回到 ①，开始下一个 step。2 个 epoch 共约 1,200 个 step（以清洗后的数据量为准）。</text>
+          </svg>
+        </div>
+        <figcaption>上面一行是一个 micro-batch 的处理，重复 4 次；下面一行是参数真正更新的地方。紫色框是这个任务特有的两步：随机选项顺序，以及定期在 validation 上评估。</figcaption>
+      </figure>
+      <figure>
+        <div class="fig-box chart-wrap" id="lr-wrap">
+          <svg id="lr-chart" viewBox="0 0 880 230" role="img" aria-label="Learning rate schedule：前 60 步从 0 线性升到峰值，然后按 cosine 降到 0，共 1,200 步；每 200 步一次 validation eval。">
+            <text x="64" y="20" class="d-txt d-sm">learning rate（× 峰值；LoRA 峰值 1e-4，pointer head 峰值 1e-3）</text>
+            <line x1="64" y1="34" x2="846" y2="34" class="c-grid"/>
+            <line x1="64" y1="110" x2="846" y2="110" class="c-grid"/>
+            <line x1="64" y1="186" x2="846" y2="186" class="c-axis"/>
+            <text x="56" y="38" text-anchor="end" class="d-mono d-tiny d-muted">1.0×</text>
+            <text x="56" y="114" text-anchor="end" class="d-mono d-tiny d-muted">0.5×</text>
+            <text x="56" y="190" text-anchor="end" class="d-mono d-tiny d-muted">0</text>
+            <text x="64" y="204" text-anchor="middle" class="d-mono d-tiny d-muted">0</text>
+            <text x="259.5" y="204" text-anchor="middle" class="d-mono d-tiny d-muted">300</text>
+            <text x="455" y="204" text-anchor="middle" class="d-mono d-tiny d-muted">600</text>
+            <text x="650.5" y="204" text-anchor="middle" class="d-mono d-tiny d-muted">900</text>
+            <text x="846" y="204" text-anchor="end" class="d-mono d-tiny d-muted">1,200</text>
+            <text x="455" y="224" text-anchor="middle" class="d-txt d-tiny d-muted">optimizer step</text>
+            <polygon class="c-area" points="64.0,186 64.0,186.0 70.5,160.7 77.0,135.3 83.5,110.0 90.1,84.7 96.6,59.3 103.1,34.0 116.1,34.1 129.2,34.5 142.2,35.0 155.2,35.8 168.3,36.9 181.3,38.1 194.3,39.6 207.4,41.3 220.4,43.2 233.4,45.3 246.5,47.5 259.5,50.0 272.5,52.7 285.6,55.5 298.6,58.5 311.6,61.7 324.7,65.0 337.7,68.4 350.7,72.0 363.8,75.7 376.8,79.5 389.8,83.4 402.9,87.3 415.9,91.3 428.9,95.4 442.0,99.6 455.0,103.7 468.0,107.9 481.1,112.1 494.1,116.3 507.1,120.4 520.2,124.6 533.2,128.7 546.2,132.7 559.3,136.6 572.3,140.5 585.3,144.3 598.4,148.0 611.4,151.6 624.4,155.0 637.5,158.3 650.5,161.5 663.5,164.5 676.6,167.3 689.6,170.0 702.6,172.5 715.7,174.7 728.7,176.8 741.7,178.7 754.8,180.4 767.8,181.9 780.8,183.1 793.9,184.2 806.9,185.0 819.9,185.5 833.0,185.9 846.0,186.0 846.0,186"/>
+            <polyline class="c-line" points="64.0,186.0 70.5,160.7 77.0,135.3 83.5,110.0 90.1,84.7 96.6,59.3 103.1,34.0 116.1,34.1 129.2,34.5 142.2,35.0 155.2,35.8 168.3,36.9 181.3,38.1 194.3,39.6 207.4,41.3 220.4,43.2 233.4,45.3 246.5,47.5 259.5,50.0 272.5,52.7 285.6,55.5 298.6,58.5 311.6,61.7 324.7,65.0 337.7,68.4 350.7,72.0 363.8,75.7 376.8,79.5 389.8,83.4 402.9,87.3 415.9,91.3 428.9,95.4 442.0,99.6 455.0,103.7 468.0,107.9 481.1,112.1 494.1,116.3 507.1,120.4 520.2,124.6 533.2,128.7 546.2,132.7 559.3,136.6 572.3,140.5 585.3,144.3 598.4,148.0 611.4,151.6 624.4,155.0 637.5,158.3 650.5,161.5 663.5,164.5 676.6,167.3 689.6,170.0 702.6,172.5 715.7,174.7 728.7,176.8 741.7,178.7 754.8,180.4 767.8,181.9 780.8,183.1 793.9,184.2 806.9,185.0 819.9,185.5 833.0,185.9 846.0,186.0"/>
+            <line x1="103.1" y1="186" x2="103.1" y2="34" class="d-dash"/>
+            <text x="110" y="58" class="d-txt d-tiny d-muted">warmup 60 步（5%）</text>
+            <circle cx="194.3" cy="39.6" r="4.5" class="c-dot"/>
+            <circle cx="324.7" cy="65.0" r="4.5" class="c-dot"/>
+            <circle cx="455.0" cy="103.7" r="4.5" class="c-dot"/>
+            <circle cx="585.3" cy="144.3" r="4.5" class="c-dot"/>
+            <circle cx="715.7" cy="174.7" r="4.5" class="c-dot"/>
+            <circle cx="846.0" cy="186.0" r="4.5" class="c-dot"/>
+            <circle cx="610" cy="56" r="4.5" class="c-dot"/>
+            <text x="620" y="60" class="d-txt d-tiny">validation eval（每 200 步）</text>
+            <line id="lr-x" x1="0" y1="34" x2="0" y2="186" class="c-cross" visibility="hidden"/>
+            <rect id="lr-hit" x="64" y="30" width="782" height="160" fill="transparent"/>
+          </svg>
+          <div class="tip" id="lr-tip" hidden></div>
+        </div>
+        <figcaption>Learning rate schedule：前 5% 的 step 线性 warmup，然后 cosine decay 到 0。曲线是按计划参数算出来的（1,200 步），实际步数以清洗后的数据量为准。鼠标移到图上可以看每一步的具体 learning rate。</figcaption>
+      </figure>
+      <div class="step-grid">
+        <div class="k">Smoke run</div><div class="v">先只用 200 条样本跑约 20 个 step：确认能放进显存、loss 在下降、速度多少。第一次运行时 DeltaNet 的 kernel 要编译，会多花几分钟。</div>
+        <div class="k">Logging</div><div class="v">每 20 步记录 loss、running accuracy、learning rate、tokens/s、GPU memory，写进 <code>runs/&lt;name&gt;/train_log.jsonl</code>。</div>
+        <div class="k">Checkpoint</div><div class="v">LoRA adapter（<code>save_pretrained</code>）+ <code>head.pt</code>（pointer head weights、temperature、配置、数据文件 hash）。</div>
+        <div class="k">验收</div><div class="v"><div class="exit">validation loss 下降并趋于平稳；没有明显 overfitting（train 和 validation 的差距不再变大）；最优 checkpoint 已保存。</div></div>
+        <div class="k">Review</div><div class="v"><div class="gatebox"><b>R2</b>：smoke run 之后给你看显存、速度和预计总时长，确认后再跑完整训练。<b>R3</b>：完整训练结束后给你看 loss 曲线和 validation 指标，再进入 calibration。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 5 -->
+    <section id="s5">
+      <div class="sec-head"><span class="step-tag">Step 5 · calibrate.py</span><h2>Calibration（temperature scaling）</h2></div>
+      <div class="step-grid">
+        <div class="k">目的</div><div class="v">让模型说"90% 把握"时，确实有大约 90% 答对。</div>
+        <div class="k">做法</div><div class="v"><ul class="plain">
+          <li>用最优 checkpoint 在 validation 上跑一遍，记录 T = 1 时的原始 logits。</li>
+          <li>在 0.25 到 4 之间取 121 个对数均匀的 T，找让平均 NLL 最小的那个，写进 <code>head.pt</code>。</li>
+          <li>T 对两个 logits 同比例缩放，argmax 不变，所以 accuracy 不变，只有 confidence 变。</li>
+        </ul></div>
+        <div class="k">验收</div><div class="v"><div class="exit">报告 calibration 前后 validation 上的 ECE 和 NLL。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 6 -->
+    <section id="s6">
+      <div class="sec-head"><span class="step-tag">Step 6 · metrics.py · evaluate.py</span><h2>Evaluation（读 test 一次）</h2></div>
+      <p>到这一步，所有选择都已经定死：截断长度、hyperparameters、checkpoint、temperature。然后才第一次打开 test。最终会产出下面这张表（现在是空的模板）：</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>模型</th><th class="num">accuracy</th><th class="num">NLL</th><th class="num">Brier</th><th class="num">ECE</th><th class="num">confident error</th><th class="num">coverage @5%</th><th class="num">order flip</th></tr></thead>
+          <tbody>
+            <tr><td>Zero-shot baseline（LM head，A/B）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>Ours（T = 1）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>Ours（calibrated）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>指标</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td>accuracy</td><td>答对的比例</td></tr>
+            <tr><td>NLL</td><td>正确答案概率的 −log 平均值，也就是训练用的 loss，越小越好</td></tr>
+            <tr><td>Brier score</td><td>概率和真实答案（0 或 1）的平方差，越小越好</td></tr>
+            <tr><td>ECE</td><td>按 confidence 分 10 个桶，看"说的把握"和"实际准确率"差多少</td></tr>
+            <tr><td>confident error</td><td>概率 ≥ 0.9 却答错的比例</td></tr>
+            <tr><td>coverage @5% / @1%</td><td>只自动处理最有把握的那部分评论，在错误率不超过 5%（或 1%）时，最多能自动处理多少</td></tr>
+            <tr><td>order flip</td><td>把两个选项交换顺序后，答案变了的比例</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="step-grid">
+        <div class="k">统计显著性</div><div class="v">对"ours vs baseline"的 accuracy 差做 paired bootstrap（1,000 次重采样），给出 95% confidence interval。1,200 条 test 在 94% 左右时，sampling error 约 ±1.3 个百分点。</div>
+        <div class="k">Error analysis</div><div class="v">列出最有把握却答错的 20 条，逐条看原因：label 噪声、反讽、褒贬混合，还是模型真的理解错了。</div>
+        <div class="k">参考</div><div class="v">公开结果里 BERT 一类模型在 ChnSentiCorp 上大约 94–95%。</div>
+        <div class="k">Review</div><div class="v"><div class="gatebox"><b>R4</b>：给你完整结果表、reliability table 和 error analysis。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ STEP 7 -->
+    <section id="s7">
+      <div class="sec-head"><span class="step-tag">Step 7 · serve.py</span><h2>Serving</h2></div>
+      <p>一个很小的 FastAPI 服务：启动时加载 base model，把 LoRA merge 进 weights，再加载 pointer head 和 temperature。</p>
+<pre><code>POST /v1/sentiment
+{"text": "房间很干净，前台服务也很热情，下次还会再来。"}
+
+<span class="c-com">→ 200</span>
+{"label": "positive",
+ "probabilities": {"negative": 0.03, "positive": 0.97},
+ "confidence": 0.94,
+ "latency_ms": 41}</code></pre>
+      <p class="small muted">上面的返回值只是格式示例，数字是编的。confidence 沿用 (p_max − 1/K) / (1 − 1/K) 的定义，K = 2。</p>
+      <div class="step-grid">
+        <div class="k">验收</div><div class="v"><div class="exit">curl 和 Python 都能调用；记录单条请求的 latency。</div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ HPARAMS -->
+    <section id="hparams">
+      <div class="sec-head"><h2>Hyperparameters（全部在一张表里）</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>项目</th><th>草稿值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>LoRA rank / alpha / dropout</td><td class="mono">16 / 32 / 0.05</td><td>attention、MLP、DeltaNet 的投影都加</td></tr>
+            <tr><td>Pointer head dim</td><td class="mono">256</td><td>W_q、W_k 的输出维度</td></tr>
+            <tr><td>Learning rate（LoRA）</td><td class="mono">1e-4</td><td>峰值</td></tr>
+            <tr><td>Learning rate（pointer head）</td><td class="mono">1e-3</td><td>head 从随机初始化开始，需要走得快一些</td></tr>
+            <tr><td>Schedule</td><td class="mono">warmup 5% → cosine</td><td>见上面的曲线</td></tr>
+            <tr><td>Optimizer</td><td class="mono">AdamW, wd 0.01</td><td>只作用在 LoRA 和 head 上</td></tr>
+            <tr><td>Gradient clipping</td><td class="mono">1.0</td><td>global norm</td></tr>
+            <tr><td>Batch</td><td class="mono">4 × accum 4 = 16</td><td>micro-batch 4，gradient accumulation 4</td></tr>
+            <tr><td>Epochs / steps</td><td class="mono">2 / ≈1,200</td><td>9,600 × 2 / 16</td></tr>
+            <tr><td>MAX_TEXT_TOKENS</td><td class="mono">384</td><td>超长时保留开头和结尾各一半；R1 时按 p99 再定</td></tr>
+            <tr><td>Precision</td><td class="mono">bf16 + fp32</td><td>backbone bf16；LoRA weights 和 pointer head fp32</td></tr>
+            <tr><td>Gradient checkpointing</td><td class="mono">on</td><td>用计算换显存</td></tr>
+            <tr><td>Eval / selection</td><td class="mono">每 200 步 / val NLL</td><td>保存 validation NLL 最低的 checkpoint</td></tr>
+            <tr><td>Option-order augmentation</td><td class="mono">p = 0.5</td><td>每条样本每个 epoch 重新抽</td></tr>
+            <tr><td>Seed</td><td class="mono">0</td><td>数据打乱和初始化都固定</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ RISKS -->
+    <section id="risks">
+      <div class="sec-head"><h2>时间、资源与风险</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>阶段</th><th class="num">预计时间</th><th>资源</th></tr></thead>
+          <tbody>
+            <tr><td>下载 base model 和数据</td><td class="num">10–30 分钟</td><td>约 9.3 GB，取决于网速</td></tr>
+            <tr><td>Step 1–2</td><td class="num">约 10 分钟</td><td>baseline 只跑 1,200 条 validation</td></tr>
+            <tr><td>Smoke run</td><td class="num">约 10 分钟</td><td>含第一次 kernel 编译</td></tr>
+            <tr><td>完整训练</td><td class="num">30–90 分钟</td><td>显存预计 &lt; 20 GB；smoke run 后给出准确估计</td></tr>
+            <tr><td>Step 5–7</td><td class="num">约 15 分钟</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>风险</th><th>怎么发现</th><th>应对</th></tr></thead>
+          <tbody>
+            <tr><td>DeltaNet kernel 在 4090 上编译失败，退回慢速实现</td><td>smoke run 的 tokens/s</td><td>先看报错；必要时换 triton 版本，或者接受慢速版本</td></tr>
+            <tr><td>WSL 只有 15 GB 内存，加载 9.3 GB checkpoint 时内存不足</td><td>加载时被系统 kill</td><td>调大 <code>.wslconfig</code> 里的内存上限（这是系统设置，会先问你）</td></tr>
+            <tr><td>Checkpoint 带 vision weights</td><td>加载时的 unexpected keys 提示</td><td><code>AutoModelForCausalLM</code> 应该只加载 text 部分；smoke run 时确认</td></tr>
+            <tr><td>Overfitting</td><td>validation NLL 先降后升</td><td>按 validation NLL 选 checkpoint；必要时减为 1 个 epoch</td></tr>
+            <tr><td>ChnSentiCorp 的 label 噪声，test 只有 1,200 条</td><td>error analysis</td><td>不过度解读小于 1 个百分点的差别；报告 confidence interval</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ QUESTIONS -->
+    <section id="questions">
+      <div class="sec-head"><h2>需要你决定的问题</h2></div>
+      <p>每个问题都写了我的默认建议。你只要回复不同意的那几条就行。</p>
+      <div class="qcards">
+        <div class="q"><span class="qn">Q1</span><span class="qt">Hyperparameters 可以吗？</span><span class="qd">见上面的总表，重点是 learning rate、epoch 数和 batch size。</span><span class="def"><b>默认：</b>按表里的草稿值。</span></div>
+        <div class="q"><span class="qn">Q2</span><span class="qt">截断长度怎么定？</span><span class="qd">固定 384，还是在 R1 看完长度分布后按 p99 定。</span><span class="def"><b>默认：</b>R1 时按 p99 定，上限 512。</span></div>
+        <div class="q"><span class="qn">Q3</span><span class="qt">Prompt 和选项的措辞</span><span class="qd"><code>这条评论的情感倾向是？</code>，选项 <code>正面：满意、称赞、推荐</code> / <code>负面：不满意、抱怨、批评</code>。</span><span class="def"><b>默认：</b>用这个版本。</span></div>
+        <div class="q"><span class="qn">Q4</span><span class="qt">Baseline 要不要加 few-shot？</span><span class="qd">只做 zero-shot，还是再加一个在 prompt 里放几条示例的 few-shot 版本。</span><span class="def"><b>默认：</b>只做 zero-shot。</span></div>
+        <div class="q"><span class="qn">Q5</span><span class="qt">要不要测 out-of-domain？</span><span class="qd">在外卖评论（<code>waimai_10k</code>）上也测一下，看看只用酒店、电脑、书籍评论训练的模型，换到没见过的外卖领域还行不行。</span><span class="def"><b>默认：</b>要，作为 Step 6 的附加项。</span></div>
+        <div class="q"><span class="qn">Q6</span><span class="qt">代码放进公开的 xev 仓库吗？</span><span class="qd">data 和 checkpoints 都不会提交，只提交代码和这份计划。</span><span class="def"><b>默认：</b>放进去，但每次 push 前先问你。</span></div>
+        <div class="q"><span class="qn">Q7</span><span class="qt">推进节奏</span><span class="qd">每一步做完都停下来讲代码和结果，还是只在 R1–R4 停。</span><span class="def"><b>默认：</b>只在 R1–R4 停，每次附上这一段代码的讲解。</span></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>计划书 v1。数据集和模型的数字来自 Hugging Face 上对应 revision 的元数据；时间和显存是估计值，smoke run 后更新。</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var svg = document.getElementById("lr-chart"), hit = document.getElementById("lr-hit");
+  var cross = document.getElementById("lr-x"), tip = document.getElementById("lr-tip"), wrap = document.getElementById("lr-wrap");
+  var W = 60, T = 1200, X0 = 64, X1 = 846;
+  function mult(s) { return s < W ? s / W : 0.5 * (1 + Math.cos(Math.PI * (s - W) / (T - W))); }
+  function show(evt) {
+    var pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+    var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    var s = Math.round(Math.max(0, Math.min(T, (p.x - X0) / (X1 - X0) * T)));
+    var x = X0 + (X1 - X0) * s / T, m = mult(s);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+    tip.textContent = "step " + s + "  ×" + m.toFixed(3) + "  LoRA " + (1e-4 * m).toExponential(2) + "  head " + (1e-3 * m).toExponential(2);
+    tip.hidden = false;
+    var wr = wrap.getBoundingClientRect();
+    var left = Math.min(Math.max(8, evt.clientX - wr.left + 12), wr.width - tip.offsetWidth - 8);
+    tip.style.left = left + "px"; tip.style.top = "12px";
+  }
+  function hide() { cross.setAttribute("visibility", "hidden"); tip.hidden = true; }
+  hit.addEventListener("mousemove", show);
+  hit.addEventListener("mouseleave", hide);
+  hit.addEventListener("touchstart", function (e) { if (e.touches[0]) show(e.touches[0]); }, { passive: true });
+  hit.addEventListener("touchmove", function (e) { if (e.touches[0]) show(e.touches[0]); }, { passive: true });
+  hit.addEventListener("touchend", hide);
+})();
+</script>
+</body>
+</html>
